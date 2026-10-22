@@ -10,33 +10,143 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as CatalogueRouteImport } from './routes/catalogue'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppExportRouteImport } from './routes/_app/export'
+import { Route as AppGuideRouteImport } from './routes/_app/guide'
+import { Route as AppProductsRouteImport } from './routes/_app/products'
+import { Route as AppReceiveRouteImport } from './routes/_app/receive'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogueRoute = CatalogueRouteImport.update({
+  id: '/catalogue',
+  path: '/catalogue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppExportRoute = AppExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGuideRoute = AppGuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProductsRoute = AppProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReceiveRoute = AppReceiveRouteImport.update({
+  id: '/receive',
+  path: '/receive',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVendorsRoute = AppVendorsRouteImport.update({
+  id: '/vendors',
+  path: '/vendors',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/catalogue': typeof CatalogueRoute
+  '/login': typeof LoginRoute
+  '/export': typeof AppExportRoute
+  '/guide': typeof AppGuideRoute
+  '/products': typeof AppProductsRoute
+  '/receive': typeof AppReceiveRoute
+  '/settings': typeof AppSettingsRoute
+  '/vendors': typeof AppVendorsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/catalogue': typeof CatalogueRoute
+  '/login': typeof LoginRoute
+  '/export': typeof AppExportRoute
+  '/guide': typeof AppGuideRoute
+  '/products': typeof AppProductsRoute
+  '/receive': typeof AppReceiveRoute
+  '/settings': typeof AppSettingsRoute
+  '/vendors': typeof AppVendorsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/catalogue': typeof CatalogueRoute
+  '/login': typeof LoginRoute
+  '/_app/export': typeof AppExportRoute
+  '/_app/guide': typeof AppGuideRoute
+  '/_app/products': typeof AppProductsRoute
+  '/_app/receive': typeof AppReceiveRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/vendors': typeof AppVendorsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/catalogue'
+    | '/login'
+    | '/export'
+    | '/guide'
+    | '/products'
+    | '/receive'
+    | '/settings'
+    | '/vendors'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/catalogue'
+    | '/login'
+    | '/export'
+    | '/guide'
+    | '/products'
+    | '/receive'
+    | '/settings'
+    | '/vendors'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/catalogue'
+    | '/login'
+    | '/_app/export'
+    | '/_app/guide'
+    | '/_app/products'
+    | '/_app/receive'
+    | '/_app/settings'
+    | '/_app/vendors'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  CatalogueRoute: typeof CatalogueRoute
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +158,97 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catalogue': {
+      id: '/catalogue'
+      path: '/catalogue'
+      fullPath: '/catalogue'
+      preLoaderRoute: typeof CatalogueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/export': {
+      id: '/_app/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof AppExportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/guide': {
+      id: '/_app/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof AppGuideRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/products': {
+      id: '/_app/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof AppProductsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/receive': {
+      id: '/_app/receive'
+      path: '/receive'
+      fullPath: '/receive'
+      preLoaderRoute: typeof AppReceiveRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/vendors': {
+      id: '/_app/vendors'
+      path: '/vendors'
+      fullPath: '/vendors'
+      preLoaderRoute: typeof AppVendorsRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppExportRoute: typeof AppExportRoute
+  AppGuideRoute: typeof AppGuideRoute
+  AppProductsRoute: typeof AppProductsRoute
+  AppReceiveRoute: typeof AppReceiveRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppVendorsRoute: typeof AppVendorsRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppExportRoute: AppExportRoute,
+  AppGuideRoute: AppGuideRoute,
+  AppProductsRoute: AppProductsRoute,
+  AppReceiveRoute: AppReceiveRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppVendorsRoute: AppVendorsRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  CatalogueRoute: CatalogueRoute,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
