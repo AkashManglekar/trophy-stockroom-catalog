@@ -15,7 +15,7 @@ import { useDraft } from "@/lib/draft";
 import { vendorIssues } from "@/lib/gst";
 import { Notice } from "@/components/kit";
 import { Button } from "@/components/ui/button";
-import { OWNER_EMAIL } from "@/lib/domain";
+import { LOGO_BLUE, OWNER_EMAIL } from "@/lib/domain";
 
 export const Route = createFileRoute("/_app")({
   ssr: false,
@@ -78,6 +78,7 @@ function AppLayout() {
     return (
       <main className="bg-hero flex min-h-dvh items-center justify-center px-4">
         <div className="panel grid max-w-sm gap-3 p-6 text-sm">
+          <img src={LOGO_BLUE} alt="Sportagon" width={794} height={160} className="h-8 w-auto" />
           <h1 className="heading text-xl">No access yet</h1>
           <p className="text-muted-foreground">
             {session.user.email} isn't set up for the Stockroom. Ask {OWNER_EMAIL} to add you.

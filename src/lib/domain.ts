@@ -15,6 +15,11 @@ export type Submission = Tables<"bill_submissions">;
 export type Role = "owner" | "editor" | "contributor" | "viewer";
 
 /** The only account that can ever be owner (super admin). Enforced in the database too. */
+/** Brand logos (public/brand). White for blue/dark backgrounds, blue for light ones. */
+export const LOGO_WHITE = "/brand/sportagon-white.png";
+export const LOGO_BLUE = "/brand/sportagon-blue.png";
+export const LOGO_MARK = "/brand/sportagon-mark.png";
+
 export const OWNER_EMAIL = "akash@sportagon.in";
 export const ROLE_INFO: Record<Exclude<Role, "owner">, { label: string; does: string }> = {
   editor: {

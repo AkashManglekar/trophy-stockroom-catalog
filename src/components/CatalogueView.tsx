@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import type { CatalogueData, CatalogueItem } from "@/lib/catalogue.functions";
 import { cn } from "@/lib/utils";
+import { LOGO_BLUE, LOGO_MARK, LOGO_WHITE } from "@/lib/domain";
 
 export const catalogueHead = () => ({
   meta: [
@@ -46,17 +47,13 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
     <div className="min-h-dvh bg-background">
       <header className="bg-hero text-white" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <div className="mx-auto grid max-w-6xl gap-2 px-4 py-7 sm:py-9">
-          {data.logo ? (
-            <img
-              src={data.logo}
-              alt="Sportagon"
-              className="h-10 w-auto max-w-[220px] object-contain object-left sm:h-11"
-            />
-          ) : (
-            <span className="text-[22px] font-black uppercase leading-none tracking-[0.14em]">
-              Sport<span className="text-accent">agon</span>
-            </span>
-          )}
+          <img
+            src={LOGO_WHITE}
+            alt="Sportagon"
+            width={799}
+            height={160}
+            className="h-9 w-auto max-w-[60vw] object-contain object-left sm:h-11"
+          />
           <h1 className="heading text-3xl sm:text-5xl">Trophy catalogue</h1>
           <p className="max-w-xl text-sm opacity-85">
             Trophies, medals and mementos for tournaments, schools and corporate events. Quote the
@@ -132,7 +129,14 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
       <footer className="border-t bg-card" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="mx-auto grid max-w-6xl gap-4 px-4 py-6 sm:grid-cols-2">
           <div>
-            <strong className="text-sm font-extrabold uppercase tracking-wider">Sportagon</strong>
+            <img
+              src={LOGO_BLUE}
+              alt="Sportagon"
+              width={794}
+              height={160}
+              loading="lazy"
+              className="h-7 w-auto"
+            />
             <p className="mt-1 text-xs text-muted-foreground">
               Prices and availability may change. Engraving and customisation are quoted separately.
             </p>
@@ -214,7 +218,7 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
         </div>
       ) : (
         <div className="grid aspect-square place-items-center content-center gap-1 border-b bg-muted p-4 text-center text-xs text-muted-foreground">
-          <b className="text-sm font-black uppercase tracking-[0.14em] opacity-50">Sportagon</b>
+          <img src={LOGO_MARK} alt="" loading="lazy" className="mx-auto size-10 opacity-30" />
           Photo coming soon
         </div>
       )}

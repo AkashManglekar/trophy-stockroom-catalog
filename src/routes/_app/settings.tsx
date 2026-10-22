@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { Download, ExternalLink, Plus, Trash2, Upload } from "lucide-react";
+import { Download, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { inr, num, type AppSettings, type Division, type RefData } from "@/lib/domain";
@@ -13,7 +13,6 @@ import {
   useInvalidate,
   useProducts,
   useRefData,
-  useSignedUrls,
 } from "@/lib/data";
 import { sortedBands } from "@/lib/pricing";
 import { publicPrefix } from "@/lib/naming";
@@ -354,8 +353,6 @@ function DivisionTable({ ref_, ro }: { ref_: RefData; ro: boolean }) {
 function CatalogueSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
   const s = ref_.settings;
   const inv = useInvalidate();
-  const [busy, setBusy] = useState(false);
-  const logo = useSignedUrls(s.logo_url ? [s.logo_url] : []);
   async function save(next: AppSettings, msg: string) {
     try {
       await saveSettings(next);
@@ -363,23 +360,6 @@ function CatalogueSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
       toast.success(msg);
     } catch (e) {
       toast.error(errMsg(e));
-    }
-  }
-  async function uploadLogo(f: File | undefined) {
-    if (!f) return;
-    setBusy(true);
-    try {
-      const ext = (f.name.split(".").pop() || "png").toLowerCase();
-      const path = `branding/logo-${Date.now()}.${ext}`;
-      const up = await supabase.storage
-        .from("media")
-        .upload(path, f, { contentType: f.type || "image/png" });
-      if (up.error) throw up.error;
-      await save({ ...s, logo_url: path }, "Logo updated");
-    } catch (e) {
-      toast.error(errMsg(e));
-    } finally {
-      setBusy(false);
     }
   }
   const url = publicCatalogueUrl();
@@ -444,54 +424,6 @@ function CatalogueSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
             {d.name}
           </label>
         ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="grid h-12 min-w-28 place-items-center rounded-lg bg-primary px-3">
-          {s.logo_url && logo[s.logo_url] ? (
-            <img src={logo[s.logo_url]} alt="Logo" className="max-h-9 object-contain" />
-          ) : (
-            <span className="text-sm font-black uppercase tracking-[0.14em] text-primary-foreground">
-              Sportagon
-            </span>
-          )}
-        </span>
-        {!ro && (
-          <>
-            <label
-              htmlFor="logo-up"
-              className={cn(
-                "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold uppercase hover:border-primary",
-                busy && "opacity-60",
-              )}
-            >
-              <Upload className="size-4" />
-              {s.logo_url ? "Replace logo" : "Upload logo"}
-            </label>
-            <input
-              id="logo-up"
-              type="file"
-              hidden
-              accept="image/png,image/svg+xml,image/webp,image/jpeg"
-              onChange={(e) => {
-                uploadLogo(e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            {s.logo_url && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-full"
-                onClick={() => save({ ...s, logo_url: null }, "Logo removed")}
-              >
-                Remove
-              </Button>
-            )}
-          </>
-        )}
-        <span className="text-xs text-muted-foreground">
-          Use a white or light logo with a transparent background — it sits on the blue header.
-        </span>
       </div>
     </Card>
   );

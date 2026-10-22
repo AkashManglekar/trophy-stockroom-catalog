@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { OWNER_EMAIL } from "@/lib/domain";
+import { LOGO_BLUE, OWNER_EMAIL } from "@/lib/domain";
 import { Field, TextInput } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 
@@ -79,10 +79,8 @@ function Login() {
     <main className="bg-hero flex min-h-dvh items-center justify-center px-4 py-10">
       <form onSubmit={submit} className="panel grid w-full max-w-sm gap-4 p-6">
         <div>
-          <p className="text-[13px] font-black uppercase tracking-[0.14em] text-primary">
-            Sportagon
-          </p>
-          <h1 className="heading mt-1 text-2xl">{title}</h1>
+          <img src={LOGO_BLUE} alt="Sportagon" width={794} height={160} className="h-9 w-auto" />
+          <h1 className="heading mt-4 text-2xl">{title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Stockroom — inventory, codes, pricing and catalogue.
           </p>

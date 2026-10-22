@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { LOGO_WHITE } from "@/lib/domain";
 
 export type NavKey = "/receive" | "/products" | "/vendors" | "/export" | "/settings" | "/guide";
 const NAV: { to: NavKey; label: string; short: string; icon: typeof Store }[] = [
@@ -38,9 +39,15 @@ export function AppShell({
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-2.5">
-          <Link to="/receive" className="flex items-baseline gap-2">
-            <span className="text-[15px] font-black uppercase tracking-[0.12em]">Sportagon</span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75">
+          <Link to="/receive" className="flex items-center gap-2.5">
+            <img
+              src={LOGO_WHITE}
+              alt="Sportagon"
+              width={799}
+              height={160}
+              className="h-6 w-auto sm:h-7"
+            />
+            <span className="border-l border-white/30 pl-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75">
               Stockroom
             </span>
           </Link>
