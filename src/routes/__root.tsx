@@ -3,12 +3,14 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  redirect,
   useRouter,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { isCatalogueHost } from "@/lib/hosts";
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth";
@@ -76,6 +78,10 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // The public catalogue address serves only the catalogue: no login, sign-up or stockroom pages.
+  beforeLoad: ({ location }) => {
+    if (location.pathname !== "/" && isCatalogueHost()) throw redirect({ to: "/" });
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },

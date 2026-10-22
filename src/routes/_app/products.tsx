@@ -48,6 +48,7 @@ import { Card, Code, Empty, Field, PageHead, Pill, Select, TextInput } from "@/c
 import { PhotoButtons, Thumb } from "@/components/photos";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { publicCatalogueUrl } from "@/lib/hosts";
 
 type Search = {
   q?: string | undefined;
@@ -144,7 +145,7 @@ function ProductsPage() {
         lede="Your master list. Open a product to see everything behind its code."
         right={
           <Button variant="outline" size="sm" className="rounded-full" asChild>
-            <a href="/catalogue" target="_blank" rel="noopener">
+            <a href={publicCatalogueUrl()} target="_blank" rel="noopener">
               <ExternalLink className="size-4" /> Public catalogue
             </a>
           </Button>

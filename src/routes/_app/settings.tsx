@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MyAccount, TeamManager } from "@/components/TeamManager";
 import { cn } from "@/lib/utils";
+import { publicCatalogueUrl } from "@/lib/hosts";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings · Sportagon Stockroom" }] }),
@@ -381,13 +382,13 @@ function CatalogueSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
       setBusy(false);
     }
   }
-  const url = typeof window !== "undefined" ? `${window.location.origin}/catalogue` : "/catalogue";
+  const url = publicCatalogueUrl();
   return (
     <Card>
       <CardTitle
         right={
           <Button size="sm" variant="outline" className="rounded-full" asChild>
-            <a href="/catalogue" target="_blank" rel="noopener">
+            <a href={publicCatalogueUrl()} target="_blank" rel="noopener">
               <ExternalLink className="size-4" />
               Open
             </a>
