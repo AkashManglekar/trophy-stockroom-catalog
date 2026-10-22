@@ -1,12 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, ExternalLink, LayoutGrid, List, Star, X } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  Copy,
+  ExternalLink,
+  LayoutGrid,
+  List,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
   ADJUST_REASONS,
   AWARD_CLASSES,
+  HIDDEN_STATUSES,
   PRODUCT_STATUSES,
   inr,
   num,
@@ -80,8 +92,11 @@ function ProductsPage() {
       .filter(
         ({ p, attn }) =>
           (!search.div || p.div === search.div) &&
-          (!search.status ||
-            (search.status === "ATTN" ? attn.length > 0 : p.status === search.status)),
+          (!search.status
+            ? !HIDDEN_STATUSES.includes(p.status)
+            : search.status === "ATTN"
+              ? attn.length > 0 && !HIDDEN_STATUSES.includes(p.status)
+              : p.status === search.status),
       )
       .filter(
         ({ p }) =>
@@ -119,6 +134,7 @@ function ProductsPage() {
   const stockValue = rows.reduce((a, { p }) => a + (p.landed ?? 0) * p.stock, 0);
   const low = rows.filter(({ attn }) => attn.includes("low stock")).length;
   const noPhoto = rows.filter(({ attn }) => attn.includes("photo")).length;
+  const archived = (products.data ?? []).filter((p) => p.status === "Archived").length;
 
   if (!ref.data) return <Empty>Loading…</Empty>;
   return (
@@ -162,7 +178,7 @@ function ProductsPage() {
             value={search.status ?? ""}
             onChange={(e) => set({ status: e.target.value || undefined })}
           >
-            <option value="">Any status</option>
+            <option value="">Any status (not archived)</option>
             <option value="ATTN">Needs attention</option>
             {PRODUCT_STATUSES.map((s) => (
               <option key={s}>{s}</option>
@@ -176,6 +192,13 @@ function ProductsPage() {
           <Pill>stock value {inr(Math.round(stockValue))}</Pill>
           {low ? <Pill tone="warn">{low} at or below reorder</Pill> : null}
           {noPhoto ? <Pill>{noPhoto} without photos</Pill> : null}
+          {archived && search.status !== "Archived" ? (
+            <button onClick={() => set({ status: "Archived" })}>
+              <Pill className="cursor-pointer underline-offset-2 hover:underline">
+                {archived} archived
+              </Pill>
+            </button>
+          ) : null}
         </div>
         <div className="inline-flex gap-1 rounded-full border bg-muted p-1">
           <button
@@ -335,7 +358,13 @@ export function StatusPill({ s }: { s: string }) {
   return (
     <Pill
       tone={
-        s === "Active" ? "ok" : s === "Discontinued" ? "bad" : s === "Clearance" ? "warn" : "mute"
+        s === "Active"
+          ? "ok"
+          : s === "Discontinued" || s === "Archived"
+            ? "bad"
+            : s === "Clearance"
+              ? "warn"
+              : "mute"
       }
     >
       {s}
@@ -354,7 +383,7 @@ function ProductPanel({
   photos: Photo[];
   onClose: () => void;
 }) {
-  const { canContribute } = useAuth();
+  const { canContribute, canEdit, canPublish } = useAuth();
   const families = useFamilies();
   const vendors = useVendors();
   const vcodes = useVendorCodes();
@@ -372,6 +401,26 @@ function ProductPanel({
   const live = priceFor(p, ref_);
   const sources = (vcodes.data ?? []).filter((v) => v.product_id === p.id);
   const ro = !canContribute;
+  const [sureDel, setSureDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  async function remove() {
+    if (!sureDel) {
+      setSureDel(true);
+      return;
+    }
+    setDeleting(true);
+    const { data, error } = await supabase.rpc("delete_product", { p_product: p.id });
+    setDeleting(false);
+    setSureDel(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    if (data?.length) await supabase.storage.from("media").remove(data);
+    toast.success(`${p.code} deleted`);
+    onClose();
+    inv("products", "photos", "vendor_codes");
+  }
 
   async function save(patch: Partial<Product>, msg = "Saved") {
     const next = { ...p, ...patch };
@@ -497,6 +546,21 @@ function ProductPanel({
           </Button>
         </div>
       </div>
+      {p.status === "Archived" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2.5 text-sm">
+          <span>Archived — hidden from the product list and the public catalogue.</span>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => save({ status: "Active" }, `${p.code} restored`)}
+            >
+              <ArchiveRestore className="size-4" /> Restore
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <Pill tone="ok">Price {inr(p.mrp)}</Pill>
         <StatusPill s={p.status} />
@@ -701,7 +765,7 @@ function ProductPanel({
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
           Stock · {p.stock} {t?.uom}
         </h4>
-        {!ro && !t?.is_service && (
+        {canPublish && !t?.is_service && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[90px_1fr_1fr_auto]">
             <Field label="Change by">
               <TextInput
@@ -864,10 +928,45 @@ function ProductPanel({
           </Field>
         </div>
         <p className="text-xs text-muted-foreground">
-          Changes save when you leave a field. The code never changes — retire a product with
-          Discontinued.
+          Changes save when you leave a field. The code never changes and is never reused.
         </p>
       </section>
+
+      {canEdit && (
+        <section className="grid gap-2 rounded-xl border border-dashed p-3">
+          <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+            Remove from use
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            <b>Archive</b> hides it everywhere (list, catalogue, Zoho shows it inactive) but keeps
+            its history — you can restore it. <b>Delete</b> erases it completely and only works for
+            items never received on a bill and with zero stock, e.g. a mistake or sample.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {p.status !== "Archived" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => save({ status: "Archived" }, `${p.code} archived`)}
+              >
+                <Archive className="size-4" /> Archive
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-full text-destructive"
+              disabled={deleting}
+              onClick={remove}
+              onBlur={() => setSureDel(false)}
+            >
+              <Trash2 className="size-4" />{" "}
+              {deleting ? "Deleting…" : sureDel ? `Tap again to delete ${p.code}` : "Delete"}
+            </Button>
+          </div>
+        </section>
+      )}
 
       {big && (
         <div

@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { Download, ExternalLink, Plus, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { inr, num, type AppSettings, type Division, type RefData, type Role } from "@/lib/domain";
+import { inr, num, type AppSettings, type Division, type RefData } from "@/lib/domain";
 import {
   errMsg,
   repriceProducts,
@@ -30,6 +29,7 @@ import {
   TextInput,
 } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { MyAccount, TeamManager } from "@/components/TeamManager";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -60,13 +60,14 @@ function SettingsPage() {
       {!canEdit && (
         <Notice>Only the owner and editors can change settings. You can view them.</Notice>
       )}
+      {isOwner && <TeamManager />}
       <PriceRule ref_={ref.data} ro={!canEdit} />
       <DivisionTable ref_={ref.data} ro={!canEdit} />
       <CatalogueSettings ref_={ref.data} ro={!canEdit} />
-      {isOwner && <Team />}
       <TypesCard ref_={ref.data} ro={!canEdit} />
       <CodeLists ref_={ref.data} ro={!canEdit} />
       <DataCard ro={!canEdit} />
+      <MyAccount />
     </>
   );
 }
@@ -495,60 +496,6 @@ function CatalogueSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
   );
 }
 
-function Team() {
-  const inv = useInvalidate();
-  const { userId } = useAuth();
-  const q = useQuery({
-    queryKey: ["team"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("user_roles").select("*").order("created_at");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  async function setRole(id: string, role: Role) {
-    const { error } = await supabase.from("user_roles").update({ role }).eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Role updated");
-    inv("team");
-  }
-  return (
-    <Card>
-      <CardTitle>Team</CardTitle>
-      <p className="text-sm text-muted-foreground">
-        People sign up from the login page and start as viewers. Contributors receive stock, edit
-        products and upload photos; editors also change settings and pricing; the owner manages
-        roles.
-      </p>
-      <div className="grid gap-2">
-        {(q.data ?? []).map((u) => (
-          <div key={u.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-2.5">
-            <span className="wrap-any min-w-0 flex-1 text-sm">
-              {u.email}
-              {u.user_id === userId ? " (you)" : ""}
-            </span>
-            <Select
-              className="h-9 w-40"
-              value={u.role}
-              disabled={u.user_id === userId}
-              onChange={(e) => setRole(u.id, e.target.value as Role)}
-            >
-              {(["owner", "editor", "contributor", "viewer"] as Role[]).map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </Select>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
 function TypesCard({ ref_, ro }: { ref_: RefData; ro: boolean }) {
   const inv = useInvalidate();
   const [f, setF] = useState({
@@ -816,30 +763,9 @@ function DataCard({ ro }: { ro: boolean }) {
     }
     setConfirm(false);
     try {
-      const { data: prods } = await supabase
-        .from("products")
-        .select("id,family_id")
-        .eq("is_sample", true);
-      const famIds = [...new Set((prods ?? []).map((p) => p.family_id))];
-      if (prods?.length) {
-        const ids = prods.map((p) => p.id);
-        const ph = await supabase.from("product_photos").select("path").in("product_id", ids);
-        const paths = (ph.data ?? []).map((x) => x.path).filter(Boolean) as string[];
-        if (paths.length) await supabase.storage.from("media").remove(paths);
-        await supabase.from("receipt_lines").delete().in("product_id", ids);
-        await supabase.from("adjustments").delete().in("product_id", ids);
-        const d = await supabase.from("products").delete().in("id", ids);
-        if (d.error) throw d.error;
-      }
-      for (const f of famIds) {
-        const { count } = await supabase
-          .from("products")
-          .select("id", { count: "exact", head: true })
-          .eq("family_id", f);
-        if (!count) await supabase.from("design_families").delete().eq("id", f);
-      }
-      const v = await supabase.from("vendors").delete().eq("is_sample", true);
-      if (v.error) throw v.error;
+      const { data: paths, error } = await supabase.rpc("clear_samples");
+      if (error) throw error;
+      if (paths?.length) await supabase.storage.from("media").remove(paths);
       toast.success("Sample data cleared");
       inv("products", "families", "vendors", "vendor_codes", "photos", "receipts");
     } catch (e) {

@@ -76,7 +76,7 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
         </p>
         <Ul>
           <li>
-            Codes never change and are never reused. Retire a product by setting it to Discontinued.
+            Codes never change and are never reused. Retire a product with Archive on its panel.
           </li>
           <li>The code carries no cost or vendor, so it is safe to show customers.</li>
         </Ul>
@@ -194,6 +194,32 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           map → Unlink.
         </li>
         <li>Wrong design name → Products → open item → Design name (renames the whole family).</li>
+        <li>
+          No longer sold → Products → open item → Archive (hidden from list and catalogue, can be
+          restored). Delete only works for items never received on a bill and with zero stock.
+        </li>
+      </Ul>
+    ),
+  },
+  {
+    id: "approvals",
+    title: "Accounts and bill approvals",
+    body: (
+      <Ul>
+        <li>
+          There is no sign-up. The owner adds each person in Settings → Team & access and shares
+          their login.
+        </li>
+        <li>
+          If your bills need approval, finish the bill as usual and press Submit for approval. Stock
+          and new codes appear only once it's approved.
+        </li>
+        <li>Sent back? Receive stock → My submitted bills → read the note → Fix & resubmit.</li>
+        <li>
+          Approvers see Bills waiting for approval at the top of Receive stock: Approve, Edit then
+          approve, or Send back with a note.
+        </li>
+        <li>Change your own password in Settings → My account.</li>
       </Ul>
     ),
   },

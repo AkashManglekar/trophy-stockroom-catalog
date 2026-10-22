@@ -11,7 +11,19 @@ export type VendorCode = Tables<"vendor_codes">;
 export type Receipt = Tables<"receipts">;
 export type ReceiptLine = Tables<"receipt_lines">;
 export type Adjustment = Tables<"adjustments">;
+export type Submission = Tables<"bill_submissions">;
 export type Role = "owner" | "editor" | "contributor" | "viewer";
+
+/** The only account that can ever be owner (super admin). Enforced in the database too. */
+export const OWNER_EMAIL = "akash@sportagon.in";
+export const ROLE_INFO: Record<Exclude<Role, "owner">, { label: string; does: string }> = {
+  editor: {
+    label: "Editor",
+    does: "Adds bills, edits products, prices and settings, archives/deletes products",
+  },
+  contributor: { label: "Contributor", does: "Adds bills, vendors and product photos" },
+  viewer: { label: "Viewer", does: "Looks things up — can't change anything" },
+};
 
 export type Band = { from: number; mult: number };
 export type AppSettings = {
@@ -77,7 +89,15 @@ export const RECEIPT_TYPES = {
 } as const;
 export type ReceiptType = keyof typeof RECEIPT_TYPES;
 
-export const PRODUCT_STATUSES = ["Active", "Draft", "Clearance", "Discontinued"] as const;
+export const PRODUCT_STATUSES = [
+  "Active",
+  "Draft",
+  "Clearance",
+  "Discontinued",
+  "Archived",
+] as const;
+/** Statuses that are hidden from the product list unless filtered for. */
+export const HIDDEN_STATUSES = ["Archived"];
 export const ADJUST_REASONS = [
   "Damaged",
   "Lost / missing",

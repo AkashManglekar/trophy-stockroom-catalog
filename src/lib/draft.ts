@@ -35,6 +35,11 @@ export type Draft = {
   billDate: string;
   billTotal: string;
   lines: DraftLine[];
+  /** Approver is editing someone's submitted bill before approving it. */
+  reviewOf?: string | undefined;
+  reviewOfLabel?: string | undefined;
+  /** Submitter is fixing a bill that was sent back. */
+  resubmitOf?: string | undefined;
 };
 
 const KEY = "stockroom-draft-v1";

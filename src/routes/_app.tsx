@@ -8,11 +8,14 @@ import {
   usePhotoMap,
   useProducts,
   useRefData,
+  useSubmissions,
   useVendors,
 } from "@/lib/data";
 import { useDraft } from "@/lib/draft";
 import { vendorIssues } from "@/lib/gst";
 import { Notice } from "@/components/kit";
+import { Button } from "@/components/ui/button";
+import { OWNER_EMAIL } from "@/lib/domain";
 
 export const Route = createFileRoute("/_app")({
   ssr: false,
@@ -20,7 +23,7 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
-  const { session, loading, role } = useAuth();
+  const { session, loading, role, hasAccess, canApprove, userId, signOut } = useAuth();
   const nav = useNavigate();
   useEffect(() => {
     if (!loading && !session) nav({ to: "/login" });
@@ -32,6 +35,7 @@ function AppLayout() {
   const vendors = useVendors();
   const photos = usePhotoMap();
   const draft = useDraft();
+  const subs = useSubmissions(hasAccess);
 
   const badges = useMemo(() => {
     const r = ref.data;
@@ -43,8 +47,25 @@ function AppLayout() {
         ).length
       : 0;
     const vend = (vendors.data ?? []).filter((v) => vendorIssues(v as never).length).length;
-    return { "/receive": draft.lines.length, "/products": prod, "/vendors": vend } as const;
-  }, [ref.data, products.data, families.data, vendors.data, photos, draft.lines.length]);
+    const pending = (subs.data ?? []).filter((x) =>
+      canApprove ? x.status === "pending" : x.submitted_by === userId && x.status === "rejected",
+    ).length;
+    return {
+      "/receive": draft.lines.length + pending,
+      "/products": prod,
+      "/vendors": vend,
+    } as const;
+  }, [
+    ref.data,
+    products.data,
+    families.data,
+    vendors.data,
+    photos,
+    draft.lines.length,
+    subs.data,
+    canApprove,
+    userId,
+  ]);
 
   if (loading || !session) {
     return (
@@ -53,12 +74,26 @@ function AppLayout() {
       </div>
     );
   }
+  if (!hasAccess) {
+    return (
+      <main className="bg-hero flex min-h-dvh items-center justify-center px-4">
+        <div className="panel grid max-w-sm gap-3 p-6 text-sm">
+          <h1 className="heading text-xl">No access yet</h1>
+          <p className="text-muted-foreground">
+            {session.user.email} isn't set up for the Stockroom. Ask {OWNER_EMAIL} to add you.
+          </p>
+          <Button className="rounded-full" onClick={signOut}>
+            Sign out
+          </Button>
+        </div>
+      </main>
+    );
+  }
   return (
     <AppShell badges={badges}>
       {role === "viewer" && (
         <Notice tone="warn">
-          You can view everything but not change it. Ask the owner to make you a contributor or
-          editor in Settings → Team.
+          You can view everything but not change it. Ask {OWNER_EMAIL} if you need to add bills.
         </Notice>
       )}
       {ref.error && (

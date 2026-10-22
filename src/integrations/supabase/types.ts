@@ -83,6 +83,78 @@ export type Database = {
         }
         Relationships: []
       }
+      bill_submissions: {
+        Row: {
+          bill_date: string | null
+          bill_no: string | null
+          bill_total: number | null
+          created_at: string
+          draft: Json
+          id: string
+          line_count: number | null
+          new_codes: number | null
+          payload: Json
+          receipt_id: string | null
+          receipt_type: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by_email: string | null
+          status: string
+          submitted_by: string | null
+          submitted_by_email: string | null
+          units: number | null
+          value: number | null
+          vendor_id: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          bill_date?: string | null
+          bill_no?: string | null
+          bill_total?: number | null
+          created_at?: string
+          draft: Json
+          id?: string
+          line_count?: number | null
+          new_codes?: number | null
+          payload: Json
+          receipt_id?: string | null
+          receipt_type: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_email?: string | null
+          status?: string
+          submitted_by?: string | null
+          submitted_by_email?: string | null
+          units?: number | null
+          value?: number | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          bill_date?: string | null
+          bill_no?: string | null
+          bill_total?: number | null
+          created_at?: string
+          draft?: Json
+          id?: string
+          line_count?: number | null
+          new_codes?: number | null
+          payload?: Json
+          receipt_id?: string | null
+          receipt_type?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by_email?: string | null
+          status?: string
+          submitted_by?: string | null
+          submitted_by_email?: string | null
+          units?: number | null
+          value?: number | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: []
+      }
       code_counters: {
         Row: {
           next_no: number
@@ -435,6 +507,7 @@ export type Database = {
       }
       receipts: {
         Row: {
+          approved_by_email: string | null
           bill_date: string | null
           bill_no: string | null
           bill_total: number | null
@@ -449,6 +522,7 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          approved_by_email?: string | null
           bill_date?: string | null
           bill_no?: string | null
           bill_total?: number | null
@@ -463,6 +537,7 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          approved_by_email?: string | null
           bill_date?: string | null
           bill_no?: string | null
           bill_total?: number | null
@@ -539,21 +614,27 @@ export type Database = {
       user_roles: {
         Row: {
           created_at: string
+          can_publish: boolean
           email: string | null
+          full_name: string | null
           id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
           created_at?: string
+          can_publish?: boolean
           email?: string | null
+          full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
           created_at?: string
+          can_publish?: boolean
           email?: string | null
+          full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
@@ -760,6 +841,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_bill: {
+        Args: { p_id: string; p_payload?: Json; p_draft?: Json }
+        Returns: Json
+      }
+      can_approve: { Args: never; Returns: boolean }
+      can_publish: { Args: never; Returns: boolean }
+      clear_samples: { Args: never; Returns: string[] }
+      delete_product: { Args: { p_product: string }; Returns: string[] }
+      reject_bill: { Args: { p_id: string; p_note: string }; Returns: undefined }
+      submit_bill: {
+        Args: { p_payload: Json; p_draft: Json; p_meta: Json; p_replaces?: string }
+        Returns: string
+      }
+      withdraw_bill: { Args: { p_id: string }; Returns: undefined }
       adjust_stock: {
         Args: {
           p_note: string

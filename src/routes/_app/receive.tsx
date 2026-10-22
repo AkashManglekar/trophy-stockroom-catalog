@@ -15,7 +15,14 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { RECEIPT_TYPES, inr, num, type Product, type ReceiptType } from "@/lib/domain";
+import {
+  RECEIPT_TYPES,
+  inr,
+  num,
+  type Product,
+  type ReceiptType,
+  type Submission,
+} from "@/lib/domain";
 import {
   errMsg,
   priceFor,
@@ -26,6 +33,7 @@ import {
   useReceipts,
   useRefData,
   useSignedUrls,
+  useSubmissions,
   useVendorCodes,
   useVendors,
 } from "@/lib/data";
@@ -75,7 +83,7 @@ type Committed = {
 };
 
 function ReceivePage() {
-  const { canContribute, canEdit } = useAuth();
+  const { canContribute, canEdit, canPublish, canApprove } = useAuth();
   const ref = useRefData();
   const products = useProducts();
   const families = useFamilies();
@@ -100,6 +108,12 @@ function ReceivePage() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [done, setDone] = useState<Committed | null>(null);
+  const reviewing = !!draft.reviewOf && canApprove;
+  const mode: "publish" | "submit" | "approve" = reviewing
+    ? "approve"
+    : canPublish
+      ? "publish"
+      : "submit";
 
   const ctx: PlanCtx | null = ref.data
     ? {
@@ -401,16 +415,46 @@ function ReceivePage() {
           prices: pricePayload(pv.price),
         };
       });
-      const { data, error } = await supabase.rpc("receive_stock", {
-        payload: {
-          receipt_type: draft.type,
-          vendor_id: vendorId && vendorId !== "NEW" ? vendorId : null,
-          bill_no: draft.billNo,
-          bill_date: draft.billDate,
-          bill_total: num(draft.billTotal),
-          lines,
-        },
-      });
+      const payload = {
+        receipt_type: draft.type,
+        vendor_id: vendorId && vendorId !== "NEW" ? vendorId : null,
+        bill_no: draft.billNo,
+        bill_date: draft.billDate,
+        bill_total: num(draft.billTotal),
+        lines,
+      };
+      const savedDraft = { ...draft, vendorId, reviewOf: undefined, resubmitOf: undefined };
+      if (mode === "submit") {
+        const { error } = await supabase.rpc("submit_bill", {
+          p_payload: payload,
+          p_draft: savedDraft,
+          p_meta: {
+            vendor_name:
+              vendors.data?.find((v) => v.id === vendorId)?.display_name ??
+              draft.newVendor["display_name"] ??
+              null,
+            line_count: draft.lines.length,
+            units: sum.units,
+            value: sum.value,
+            new_codes: sum.new,
+          },
+          ...(draft.resubmitOf ? { p_replaces: draft.resubmitOf } : {}),
+        });
+        if (error) throw new Error(error.message);
+        setDraft(newDraft());
+        setConfirming(false);
+        await inv("submissions", "families");
+        toast.success("Sent for approval. Stock is added once it's approved.");
+        return;
+      }
+      const { data, error } =
+        mode === "approve"
+          ? await supabase.rpc("approve_bill", {
+              p_id: draft.reviewOf!,
+              p_payload: payload,
+              p_draft: savedDraft,
+            })
+          : await supabase.rpc("receive_stock", { payload });
       if (error) throw new Error(error.message);
       const res = data as { receipt_id: string; created: Committed["created"] };
       const ids = [
@@ -427,9 +471,9 @@ function ReceivePage() {
       });
       setDraft(newDraft());
       setConfirming(false);
-      await inv("products", "families", "vendor_codes", "receipts", "counters");
+      await inv("products", "families", "vendor_codes", "receipts", "counters", "submissions");
       toast.success(
-        `Received — ${res.created.length} new code${res.created.length === 1 ? "" : "s"}`,
+        `${mode === "approve" ? "Approved & received" : "Received"} — ${res.created.length} new code${res.created.length === 1 ? "" : "s"}`,
       );
     } catch (e) {
       toast.error(errMsg(e));
@@ -455,6 +499,47 @@ function ReceivePage() {
         title="Receive stock"
         lede="Record stock arriving at the store. Known items map to your codes automatically; new items get the next code in their series."
       />
+
+      {canContribute && !canPublish && !draft.resubmitOf && (
+        <Notice>
+          Your bills go for approval before stock is added. You'll see the status below.
+        </Notice>
+      )}
+      {draft.reviewOf && (
+        <Notice tone="warn">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Reviewing {draft.reviewOfLabel ?? "a submitted bill"}. Fix anything, then{" "}
+              <b>Approve & receive</b>.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setDraft(newDraft())}
+            >
+              Stop reviewing
+            </Button>
+          </span>
+        </Notice>
+      )}
+      {draft.resubmitOf && (
+        <Notice tone="warn">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <span>Fixing a returned bill — submit again when it's right.</span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setDraft(newDraft())}
+            >
+              Cancel
+            </Button>
+          </span>
+        </Notice>
+      )}
+
+      <BillApprovals vendors={vend} prodById={prodById} draftBusy={draft.lines.length > 0} />
 
       {done && (
         <DoneCard
@@ -786,7 +871,11 @@ function ReceivePage() {
                     disabled={!ready}
                     onClick={commit}
                   >
-                    Confirm receive
+                    {mode === "submit"
+                      ? "Submit for approval"
+                      : mode === "approve"
+                        ? "Approve & receive"
+                        : "Confirm receive"}
                   </Button>
                 </>
               ) : (
@@ -795,7 +884,7 @@ function ReceivePage() {
                   disabled={!ready}
                   onClick={() => setConfirming(true)}
                 >
-                  Review & receive
+                  {mode === "submit" ? "Review & submit" : "Review & receive"}
                 </Button>
               )}
             </div>
@@ -812,7 +901,10 @@ function ReceivePage() {
           )}
           {confirming && ready && (
             <Notice>
-              This will create {sum.new} new product code{sum.new === 1 ? "" : "s"}, add {sum.units}{" "}
+              {mode === "submit"
+                ? "This goes for approval first. Nothing changes in stock until it's approved. Once approved, it "
+                : "This "}
+              will create {sum.new} new product code{sum.new === 1 ? "" : "s"}, add {sum.units}{" "}
               units across {sum.lines} line{sum.lines === 1 ? "" : "s"}
               {draft.type === "bill"
                 ? ", update cost, price and preferred vendor on known items"
@@ -824,7 +916,7 @@ function ReceivePage() {
       )}
 
       <RecentReceipts
-        canReverse={canContribute}
+        canReverse={canPublish}
         vendors={vend}
         prodById={prodById}
         isEditor={canEdit}
@@ -1051,7 +1143,7 @@ function LineCard({
                 />
                 <datalist id={`dl-${l.id}`}>
                   {ctx.products
-                    .filter((p) => p.status !== "Discontinued")
+                    .filter((p) => p.status !== "Discontinued" && p.status !== "Archived")
                     .map((p) => (
                       <option key={p.id} value={`${p.code} · ${p.friendly_name}`} />
                     ))}
@@ -1410,6 +1502,7 @@ function RecentReceipts({
                   {r.bill_no ? `${r.bill_no} · ` : ""}
                   {r.lines.length} lines · {units} units ·{" "}
                   {r.lines.filter((l) => l.created_new).length} new · by {r.created_by_email ?? "—"}
+                  {r.approved_by_email ? ` · approved by ${r.approved_by_email}` : ""}
                 </span>
               </button>
               {isOpen && (
@@ -1455,4 +1548,270 @@ function RecentReceipts({
       </div>
     </Card>
   );
+}
+
+type PayloadLine = {
+  product_id?: string;
+  description?: string;
+  received_qty?: number;
+  billed_qty?: number | null;
+  unit_cost?: number | null;
+  new?: { friendly_name?: string };
+};
+
+function BillApprovals({
+  vendors,
+  prodById,
+  draftBusy,
+}: {
+  vendors: { id: string; display_name: string }[];
+  prodById: Map<string, Product>;
+  draftBusy: boolean;
+}) {
+  const { canApprove, canContribute, userId } = useAuth();
+  const q = useSubmissions(canContribute);
+  const inv = useInvalidate();
+  const [open, setOpen] = useState<string | null>(null);
+  const [sure, setSure] = useState<string | null>(null);
+  const [returning, setReturning] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState("");
+  const all = q.data ?? [];
+  const list = canApprove
+    ? all.filter((s) => s.status === "pending")
+    : all.filter(
+        (s) =>
+          s.submitted_by === userId &&
+          s.status !== "withdrawn" &&
+          (s.status !== "approved" || isRecent(s.reviewed_at)),
+      );
+  const recent = canApprove
+    ? all.filter((s) => s.status === "approved" || s.status === "rejected").slice(0, 5)
+    : [];
+  if (!list.length && !recent.length) return null;
+
+  const vName = (s: Submission) =>
+    vendors.find((v) => v.id === s.vendor_id)?.display_name ?? s.vendor_name ?? "No vendor";
+  const label = (s: Submission) =>
+    `${vName(s)}${s.bill_no ? ` · ${s.bill_no}` : ""} from ${s.submitted_by_email ?? "—"}`;
+
+  function load(s: Submission, as: "review" | "fix") {
+    if (draftBusy && !confirm("Replace the bill you're working on with this one?")) return;
+    const d = s.draft as unknown as Draft;
+    setDraft({
+      ...newDraft(),
+      ...d,
+      reviewOf: as === "review" ? s.id : undefined,
+      reviewOfLabel: as === "review" ? label(s) : undefined,
+      resubmitOf: as === "fix" ? s.id : undefined,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  async function run(
+    key: string,
+    fn: () => PromiseLike<{ error: { message: string } | null }>,
+    ok: string,
+  ) {
+    setBusy(key);
+    const { error } = await fn();
+    setBusy("");
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    toast.success(ok);
+    await inv("submissions", "products", "receipts", "families", "vendor_codes", "counters");
+    return true;
+  }
+  async function approve(s: Submission) {
+    if (sure !== s.id) {
+      setSure(s.id);
+      return;
+    }
+    setSure(null);
+    await run(s.id, () => supabase.rpc("approve_bill", { p_id: s.id }), "Approved — stock added");
+  }
+  async function sendBack(s: Submission) {
+    if (!note.trim()) {
+      toast.error("Say what needs fixing");
+      return;
+    }
+    if (
+      await run(
+        s.id,
+        () => supabase.rpc("reject_bill", { p_id: s.id, p_note: note.trim() }),
+        "Sent back with your note",
+      )
+    ) {
+      setReturning(null);
+      setNote("");
+    }
+  }
+
+  const row = (s: Submission, actions: boolean) => {
+    const isOpen = open === s.id;
+    const lines = ((s.payload as { lines?: PayloadLine[] }).lines ?? []) as PayloadLine[];
+    return (
+      <div
+        key={s.id}
+        className={cn("overflow-hidden rounded-xl border", isOpen && "border-accent")}
+      >
+        <button
+          className="grid w-full gap-1 p-3 text-left"
+          onClick={() => setOpen(isOpen ? null : s.id)}
+          aria-expanded={isOpen}
+        >
+          <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              {String(s.bill_date ?? s.created_at).slice(0, 10)} ·{" "}
+              {RECEIPT_TYPES[s.receipt_type as ReceiptType]?.label ?? s.receipt_type}
+            </span>
+            <SubmissionPill s={s.status} />
+          </span>
+          <strong className="wrap-any text-sm">
+            {vName(s)}
+            {s.bill_no ? ` · ${s.bill_no}` : ""}
+          </strong>
+          <span className="wrap-any text-xs text-muted-foreground">
+            {s.line_count ?? lines.length} lines · {s.units ?? "—"} units · {inr(s.value)} ·{" "}
+            {s.new_codes ?? 0} new · by {s.submitted_by_email ?? "—"}
+            {s.reviewed_by_email && s.status !== "withdrawn"
+              ? ` · ${s.status} by ${s.reviewed_by_email}`
+              : ""}
+          </span>
+          {s.status === "rejected" && s.review_note && (
+            <span className="wrap-any rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
+              {s.review_note}
+            </span>
+          )}
+        </button>
+        {isOpen && (
+          <div className="grid gap-2 border-t p-3">
+            {lines.map((l, i) => {
+              const p = l.product_id ? prodById.get(l.product_id) : undefined;
+              return (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  {p ? <Code>{p.code}</Code> : <Pill tone="info">new</Pill>}
+                  <span className="wrap-any min-w-0 flex-1">
+                    {p?.friendly_name ?? l.new?.friendly_name ?? l.description}
+                  </span>
+                  <span className="whitespace-nowrap text-xs tabular-nums">
+                    {l.received_qty ?? 0} × {inr(l.unit_cost)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {actions && (
+          <div className="flex flex-wrap gap-2 border-t bg-muted/40 p-2.5">
+            {canApprove && s.status === "pending" && (
+              <>
+                <Button
+                  size="sm"
+                  className="rounded-full"
+                  disabled={!!busy}
+                  onClick={() => approve(s)}
+                >
+                  {busy === s.id ? "Working…" : sure === s.id ? "Tap again to approve" : "Approve"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={!!busy}
+                  onClick={() => load(s, "review")}
+                >
+                  Edit, then approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-full"
+                  disabled={!!busy}
+                  onClick={() => {
+                    setReturning(returning === s.id ? null : s.id);
+                    setNote("");
+                  }}
+                >
+                  Send back
+                </Button>
+              </>
+            )}
+            {!canApprove && s.submitted_by === userId && s.status === "rejected" && (
+              <Button size="sm" className="rounded-full" onClick={() => load(s, "fix")}>
+                Fix & resubmit
+              </Button>
+            )}
+            {s.submitted_by === userId && (s.status === "pending" || s.status === "rejected") && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full"
+                disabled={!!busy}
+                onClick={() =>
+                  run(s.id, () => supabase.rpc("withdraw_bill", { p_id: s.id }), "Withdrawn")
+                }
+              >
+                Withdraw
+              </Button>
+            )}
+            {returning === s.id && (
+              <div className="grid w-full gap-2">
+                <TextArea
+                  className="min-h-16 font-sans"
+                  placeholder="What needs fixing? e.g. Line 3 cost should be ₹420"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="w-fit rounded-full"
+                  disabled={!!busy}
+                  onClick={() => sendBack(s)}
+                >
+                  Send back with note
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Card className={cn(canApprove && list.length > 0 && "border-warning")}>
+      <CardTitle right={list.length ? <Pill tone="warn">{list.length}</Pill> : null}>
+        {canApprove ? "Bills waiting for approval" : "My submitted bills"}
+      </CardTitle>
+      {list.length ? (
+        <div className="grid gap-2">{list.map((s) => row(s, true))}</div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nothing waiting.</p>
+      )}
+      {recent.length > 0 && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Recently reviewed</summary>
+          <div className="mt-2 grid gap-2">{recent.map((s) => row(s, false))}</div>
+        </details>
+      )}
+    </Card>
+  );
+}
+
+function isRecent(ts: string | null) {
+  return !!ts && Date.now() - new Date(ts).getTime() < 3 * 86_400_000;
+}
+
+function SubmissionPill({ s }: { s: string }) {
+  const map: Record<string, ["ok" | "warn" | "bad" | "mute", string]> = {
+    pending: ["warn", "waiting"],
+    approved: ["ok", "approved"],
+    rejected: ["bad", "sent back"],
+    withdrawn: ["mute", "withdrawn"],
+  };
+  const [tone, text] = map[s] ?? ["mute", s];
+  return <Pill tone={tone}>{text}</Pill>;
 }

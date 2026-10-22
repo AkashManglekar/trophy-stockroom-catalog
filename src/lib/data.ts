@@ -11,6 +11,7 @@ import {
   type Receipt,
   type ReceiptLine,
   type RefData,
+  type Submission,
   type Vendor,
   type VendorCode,
 } from "./domain";
@@ -105,6 +106,22 @@ export const useReceipts = () =>
         : [];
       return receipts.map((r) => ({ ...r, lines: lines.filter((l) => l.receipt_id === r.id) }));
     },
+  });
+/** Bills submitted for approval: approvers see everyone's, others see their own. */
+export const useSubmissions = (enabled = true) =>
+  useQuery({
+    queryKey: ["submissions"],
+    enabled,
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+    queryFn: () =>
+      all<Submission>(
+        supabase
+          .from("bill_submissions")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(60),
+      ),
   });
 export const useAdjustments = (productId: string | null) =>
   useQuery({
@@ -240,7 +257,7 @@ export function attentionReasons(
   families: Family[],
   photoCount: number,
 ): string[] {
-  if (p.status === "Discontinued") return [];
+  if (p.status === "Discontinued" || p.status === "Archived") return [];
   const t = ref.types.find((x) => x.div === p.div && x.code === p.type);
   const fam = families.find((f) => f.id === p.family_id);
   const out: string[] = [];

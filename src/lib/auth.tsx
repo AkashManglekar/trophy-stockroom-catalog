@@ -12,7 +12,12 @@ type AuthState = {
   role: Role | null;
   canEdit: boolean;
   canContribute: boolean;
+  /** Bills go straight into stock (otherwise they wait for approval). */
+  canPublish: boolean;
+  /** Can approve other people's bills. */
+  canApprove: boolean;
   isOwner: boolean;
+  hasAccess: boolean;
   signOut: () => Promise<void>;
 };
 
@@ -38,14 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role,can_publish")
         .eq("user_id", userId!)
         .maybeSingle();
       if (error) throw error;
-      return (data?.role as Role) ?? null;
+      return data ? { role: data.role as Role, canPublish: !!data.can_publish } : null;
     },
   });
-  const role = roleQ.data ?? null;
+  const role = roleQ.data?.role ?? null;
+  const pub = role === "owner" || (!!roleQ.data?.canPublish && role !== "viewer");
   const value: AuthState = {
     session,
     loading: loading || (!!userId && roleQ.isLoading),
@@ -53,6 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: session?.user.email ?? null,
     role,
     isOwner: role === "owner",
+    hasAccess: !!role,
+    canPublish: pub,
+    canApprove: role === "owner" || (role === "editor" && pub),
     canEdit: role === "owner" || role === "editor",
     canContribute: role === "owner" || role === "editor" || role === "contributor",
     signOut: async () => {

@@ -105,6 +105,8 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
           `cost ${cost > p.unit_cost ? "up" : "down"} ${Math.round((Math.abs(cost - p.unit_cost) / p.unit_cost) * 100)}% vs last (₹${p.unit_cost})`,
         );
       if (p.status === "Discontinued") P.warns.push(`${p.code} is discontinued`);
+      if (p.status === "Archived")
+        P.warns.push(`${p.code} is archived — restore it on Products to sell it`);
     };
     if (match) {
       P.kind = "known";
