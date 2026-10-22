@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Globe,
+  Mail,
+  MessageCircle,
+  Phone,
+  Search,
+  X,
+} from "lucide-react";
 import type { CatalogueData, CatalogueItem } from "@/lib/catalogue.functions";
 import { cn } from "@/lib/utils";
 import { LOGO_BLUE, LOGO_MARK, LOGO_WHITE } from "@/lib/domain";
 
 const SITE = "https://catalogue.sportagon.in";
+const PHONE = "+91 72760 88888";
+const PHONE_E164 = "+917276088888";
 const SHARE_TITLE = "Sportagon Trophy Catalogue — Trophies, Medals & Awards";
 const SHARE_DESC =
-  "Browse Sportagon's trophies, medals and mementos for tournaments, schools and corporate events — with codes, prices and photos. Enquiries: +91 83088 84539.";
+  "Browse Sportagon's trophies, medals and mementos for tournaments, schools and corporate events — with codes, prices and photos. Enquiries: +91 72760 88888.";
 const SHARE_IMAGE = `${SITE}/brand/og-catalogue.jpg`;
 
 /** Page title, search snippet and link preview (WhatsApp, Facebook, LinkedIn, X, iMessage). */
@@ -61,19 +72,21 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
   return (
     <div className="min-h-dvh bg-background">
       <header className="bg-hero text-white" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-        <div className="mx-auto grid max-w-6xl gap-2 px-4 py-7 sm:py-9">
+        <div className="mx-auto flex max-w-6xl flex-col-reverse gap-5 px-4 py-7 sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:py-10">
+          <div className="grid min-w-0 gap-2">
+            <h1 className="heading text-3xl sm:text-5xl">Trophy catalogue</h1>
+            <p className="max-w-xl text-sm opacity-85">
+              Trophies, medals and mementos for tournaments, schools and corporate events. Quote the
+              product code when you enquire.
+            </p>
+          </div>
           <img
             src={LOGO_WHITE}
             alt="Sportagon"
             width={799}
             height={160}
-            className="h-9 w-auto max-w-[60vw] object-contain object-left sm:h-11"
+            className="h-8 w-auto max-w-[55vw] shrink-0 self-end object-contain sm:h-11 sm:self-center"
           />
-          <h1 className="heading text-3xl sm:text-5xl">Trophy catalogue</h1>
-          <p className="max-w-xl text-sm opacity-85">
-            Trophies, medals and mementos for tournaments, schools and corporate events. Quote the
-            product code when you enquire.
-          </p>
         </div>
       </header>
       <div
@@ -142,26 +155,79 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
         )}
       </main>
       <footer className="border-t bg-card" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="mx-auto grid max-w-6xl gap-4 px-4 py-6 sm:grid-cols-2">
-          <div>
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-[1.3fr_1fr_1fr] sm:gap-10">
+          <div className="grid content-start gap-3">
             <img
               src={LOGO_BLUE}
               alt="Sportagon"
               width={794}
               height={160}
               loading="lazy"
-              className="h-7 w-auto"
+              className="h-8 w-auto self-start justify-self-start"
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Prices and availability may change. Engraving and customisation are quoted separately.
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Trophies, medals and mementos for tournaments, schools and corporate events —
+              engraving and custom awards on request.
             </p>
           </div>
-          <div className="grid gap-1 text-sm">
-            <strong className="text-sm font-extrabold uppercase tracking-wider">Enquiries</strong>
-            <span className="select-all">play@sportagon.in</span>
-            <span className="select-all">+91 83088 84539</span>
-            <span className="select-all">www.sportagon.in</span>
+          <div className="grid content-start gap-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+              Enquiries
+            </h2>
+            <ul className="grid gap-2.5 text-sm">
+              <li>
+                <a
+                  href={`tel:${PHONE_E164}`}
+                  className="inline-flex items-center gap-2.5 hover:text-primary"
+                >
+                  <Phone className="size-4 text-primary" /> {PHONE}
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`https://wa.me/${PHONE_E164.slice(1)}?text=${encodeURIComponent("Hi Sportagon, I'd like a quote for: ")}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-2.5 hover:text-primary"
+                >
+                  <MessageCircle className="size-4 text-primary" /> WhatsApp us
+                </a>
+              </li>
+              <li>
+                <a
+                  href="mailto:play@sportagon.in"
+                  className="inline-flex items-center gap-2.5 hover:text-primary"
+                >
+                  <Mail className="size-4 text-primary" /> play@sportagon.in
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://www.sportagon.in"
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-2.5 hover:text-primary"
+                >
+                  <Globe className="size-4 text-primary" /> www.sportagon.in
+                </a>
+              </li>
+            </ul>
           </div>
+          <div className="grid content-start gap-3">
+            <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+              Ordering
+            </h2>
+            <ul className="grid gap-2 text-sm text-muted-foreground">
+              <li>Quote the product code when you enquire.</li>
+              <li>Engraving and customisation are quoted separately.</li>
+              <li>Prices in INR. Prices and availability may change.</li>
+            </ul>
+          </div>
+        </div>
+        <div className="border-t">
+          <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Sportagon Technologies Pvt. Ltd.
+          </p>
         </div>
       </footer>
       {lb && <Lightbox item={lb.item} start={lb.i} onClose={() => setLb(null)} />}

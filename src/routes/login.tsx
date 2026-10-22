@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { LOGO_BLUE, OWNER_EMAIL } from "@/lib/domain";
+import { LOGO_BLUE } from "@/lib/domain";
 import { Field, TextInput } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 
@@ -77,13 +77,10 @@ function Login() {
     mode === "in" ? "Sign in" : mode === "reset" ? "Reset password" : "Set new password";
   return (
     <main className="bg-hero flex min-h-dvh items-center justify-center px-4 py-10">
-      <form onSubmit={submit} className="panel grid w-full max-w-sm gap-4 p-6">
-        <div>
+      <form onSubmit={submit} className="panel grid w-full max-w-sm gap-4 p-6 sm:p-8">
+        <div className="grid justify-items-center gap-4 pb-1 text-center">
           <img src={LOGO_BLUE} alt="Sportagon" width={794} height={160} className="h-9 w-auto" />
-          <h1 className="heading mt-4 text-2xl">{title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Stockroom — inventory, codes, pricing and catalogue.
-          </p>
+          <h1 className="heading text-2xl">{title}</h1>
         </div>
         {mode !== "newpw" && (
           <Field label="Email">
@@ -132,7 +129,7 @@ function Login() {
                 ? "Send reset link"
                 : "Save password"}
         </Button>
-        <div className="flex flex-wrap justify-between gap-2 text-sm">
+        <div className="flex justify-center text-sm">
           {mode === "in" ? (
             <button
               type="button"
@@ -154,11 +151,6 @@ function Login() {
             </button>
           )}
         </div>
-        {mode === "in" && (
-          <p className="text-xs text-muted-foreground">
-            Accounts are created by the owner. Need access? Ask {OWNER_EMAIL}.
-          </p>
-        )}
       </form>
     </main>
   );
