@@ -4,21 +4,36 @@ import type { CatalogueData, CatalogueItem } from "@/lib/catalogue.functions";
 import { cn } from "@/lib/utils";
 import { LOGO_BLUE, LOGO_MARK, LOGO_WHITE } from "@/lib/domain";
 
+const SITE = "https://catalogue.sportagon.in";
+const SHARE_TITLE = "Sportagon Trophy Catalogue — Trophies, Medals & Awards";
+const SHARE_DESC =
+  "Browse Sportagon's trophies, medals and mementos for tournaments, schools and corporate events — with codes, prices and photos. Enquiries: +91 83088 84539.";
+const SHARE_IMAGE = `${SITE}/brand/og-catalogue.jpg`;
+
+/** Page title, search snippet and link preview (WhatsApp, Facebook, LinkedIn, X, iMessage). */
 export const catalogueHead = () => ({
   meta: [
-    { title: "Sportagon Trophy Catalogue" },
-    {
-      name: "description",
-      content:
-        "Trophies, medals and mementos for tournaments, schools and corporate events. Browse codes, prices and photos.",
-    },
-    { property: "og:title", content: "Sportagon Trophy Catalogue" },
-    {
-      property: "og:description",
-      content: "Trophies, medals and mementos for tournaments, schools and corporate events.",
-    },
+    { title: SHARE_TITLE },
+    { name: "description", content: SHARE_DESC },
+    { name: "robots", content: "index, follow" },
+    { property: "og:site_name", content: "Sportagon" },
     { property: "og:type", content: "website" },
+    { property: "og:locale", content: "en_IN" },
+    { property: "og:url", content: SITE },
+    { property: "og:title", content: SHARE_TITLE },
+    { property: "og:description", content: SHARE_DESC },
+    { property: "og:image", content: SHARE_IMAGE },
+    { property: "og:image:secure_url", content: SHARE_IMAGE },
+    { property: "og:image:type", content: "image/jpeg" },
+    { property: "og:image:width", content: "1200" },
+    { property: "og:image:height", content: "630" },
+    { property: "og:image:alt", content: "Sportagon Trophy Catalogue" },
+    { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: SHARE_TITLE },
+    { name: "twitter:description", content: SHARE_DESC },
+    { name: "twitter:image", content: SHARE_IMAGE },
   ],
+  links: [{ rel: "canonical", href: SITE }],
 });
 
 export function CatalogueError() {
