@@ -9,6 +9,7 @@ import {
   ExternalLink,
   LayoutGrid,
   List,
+  SlidersHorizontal,
   Star,
   Trash2,
   X,
@@ -16,7 +17,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
-  ADJUST_REASONS,
   AWARD_CLASSES,
   HIDDEN_STATUSES,
   PRODUCT_STATUSES,
@@ -46,6 +46,7 @@ import { pricePayload } from "@/lib/pricing";
 import { removePhoto, setMainPhoto, withThumbs } from "@/lib/photos";
 import { Card, Code, Empty, Field, PageHead, Pill, Select, TextInput } from "@/components/kit";
 import { PhotoButtons, Thumb } from "@/components/photos";
+import { BulkAdjust, StockAdjustForm } from "@/components/StockAdjust";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { publicCatalogueUrl } from "@/lib/hosts";
@@ -77,6 +78,8 @@ function ProductsPage() {
     nav({ search: (s: Search) => ({ ...s, ...patch }), replace: true });
   const ref = useRefData();
   const products = useProducts();
+  const { canPublish } = useAuth();
+  const [bulk, setBulk] = useState(false);
   const families = useFamilies();
   const vendors = useVendors();
   const photoMap = usePhotoMap();
@@ -144,13 +147,28 @@ function ProductsPage() {
         title="Products"
         lede="Your master list. Open a product to see everything behind its code."
         right={
-          <Button variant="outline" size="sm" className="rounded-full" asChild>
-            <a href={publicCatalogueUrl()} target="_blank" rel="noopener">
-              <ExternalLink className="size-4" /> Public catalogue
-            </a>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canPublish && (
+              <Button
+                size="sm"
+                className="rounded-full"
+                onClick={() => setBulk((v) => !v)}
+                aria-pressed={bulk}
+              >
+                <SlidersHorizontal className="size-4" /> Adjust stock
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <a href={publicCatalogueUrl()} target="_blank" rel="noopener">
+                <ExternalLink className="size-4" /> Public catalogue
+              </a>
+            </Button>
+          </div>
         }
       />
+      {bulk && canPublish && (
+        <BulkAdjust products={products.data ?? []} onClose={() => setBulk(false)} />
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_200px_180px]">
         <Field label="Search code, name, vendor" className="col-span-2 sm:col-span-1">
           <TextInput
@@ -396,9 +414,6 @@ function ProductPanel({
   );
   const [big, setBig] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [adjQty, setAdjQty] = useState("");
-  const [adjReason, setAdjReason] = useState("");
-  const [adjNote, setAdjNote] = useState("");
   const fam = families.data?.find((f) => f.id === p.family_id);
   const t = ref_.types.find((x) => x.div === p.div && x.code === p.type);
   const d = ref_.divisions.find((x) => x.code === p.div);
@@ -477,36 +492,6 @@ function ProductPanel({
     }
     toast.success("Renamed the whole design family");
     inv("products", "families");
-  }
-  async function adjust() {
-    const q = num(adjQty);
-    if (!q || !Number.isInteger(q)) {
-      toast.error("Enter a whole number, e.g. -2 or 5");
-      return;
-    }
-    if (!adjReason) {
-      toast.error("Pick a reason");
-      return;
-    }
-    if (p.stock + q < 0) {
-      toast.error(`Stock can't go below zero (now ${p.stock})`);
-      return;
-    }
-    const { error } = await supabase.rpc("adjust_stock", {
-      p_product: p.id,
-      p_qty: q,
-      p_reason: adjReason,
-      p_note: adjNote,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(`Stock ${p.stock} → ${p.stock + q}`);
-    setAdjQty("");
-    setAdjNote("");
-    setAdjReason("");
-    inv("products", "adjustments");
   }
   const main = photos[0];
   return (
@@ -769,36 +754,14 @@ function ProductPanel({
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
           Stock · {p.stock} {t?.uom}
         </h4>
-        {canPublish && !t?.is_service && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[90px_1fr_1fr_auto]">
-            <Field label="Change by">
-              <TextInput
-                inputMode="numeric"
-                value={adjQty}
-                placeholder="-2 or 5"
-                onChange={(e) => setAdjQty(e.target.value)}
-              />
-            </Field>
-            <Field label="Reason">
-              <Select value={adjReason} onChange={(e) => setAdjReason(e.target.value)}>
-                <option value="">Choose…</option>
-                {ADJUST_REASONS.map((r) => (
-                  <option key={r}>{r}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Note" className="col-span-2 sm:col-span-1">
-              <TextInput
-                value={adjNote}
-                onChange={(e) => setAdjNote(e.target.value)}
-                placeholder="optional"
-              />
-            </Field>
-            <Button className="col-span-2 self-end rounded-full sm:col-span-1" onClick={adjust}>
-              Adjust
-            </Button>
-          </div>
-        )}
+        {!t?.is_service &&
+          (canPublish ? (
+            <StockAdjustForm p={p} unit={t?.uom} />
+          ) : canContribute ? (
+            <p className="text-xs text-muted-foreground">
+              Stock changes need publish rights — ask the owner.
+            </p>
+          ) : null)}
         {(adj.data ?? []).length ? (
           <ul className="grid gap-1 text-xs">
             {adj.data!.map((a) => (

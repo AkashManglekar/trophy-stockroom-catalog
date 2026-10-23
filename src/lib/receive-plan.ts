@@ -97,6 +97,14 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
     if (isBill && cost === 0) P.warns.push("unit cost is ₹0");
 
     const match = findMatch(l, d.vendorId, ctx);
+    if (!isBill && (match || l.mode === "link")) {
+      const pid = match?.productId ?? l.linkId;
+      const code = ctx.products.find((x) => x.id === pid)?.code ?? "This item";
+      P.kind = match ? "known" : "link";
+      P.productId = pid || undefined;
+      P.errors.push(`${code} already has a code — add its stock in Products → Adjust stock`);
+      return;
+    }
     const existingCheck = (pid: string) => {
       const p = ctx.products.find((x) => x.id === pid);
       if (!p) return;

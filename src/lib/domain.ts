@@ -93,6 +93,11 @@ export const RECEIPT_TYPES = {
   return: { label: "Customer return", ref: "Return reference" },
 } as const;
 export type ReceiptType = keyof typeof RECEIPT_TYPES;
+/** What Receive stock offers. Opening stock / returns of existing products are stock adjustments on Products. */
+export const RECEIVE_CHOICES: { type: ReceiptType; label: string }[] = [
+  { type: "bill", label: "Vendor bill" },
+  { type: "opening", label: "New items (no bill)" },
+];
 
 export const PRODUCT_STATUSES = [
   "Active",
@@ -103,14 +108,27 @@ export const PRODUCT_STATUSES = [
 ] as const;
 /** Statuses that are hidden from the product list unless filtered for. */
 export const HIDDEN_STATUSES = ["Archived"];
-export const ADJUST_REASONS = [
-  "Damaged",
-  "Lost / missing",
-  "Physical count correction",
-  "Used for display",
-  "Gifted / sample",
-  "Other",
-] as const;
+/** Stock adjustments. Each reason implies the direction: add, remove, or set to a counted quantity. */
+export type AdjustMode = "add" | "remove" | "set";
+export const ADJUST_REASONS: Record<AdjustMode, readonly string[]> = {
+  add: ["Opening stock", "Customer return", "Found in recount", "Transfer in", "Other (add)"],
+  remove: [
+    "Damaged",
+    "Lost / missing",
+    "Used for display",
+    "Gifted / sample",
+    "Transfer out",
+    "Other (remove)",
+  ],
+  set: ["Physical count"],
+};
+export const modeOfReason = (r: string): AdjustMode =>
+  (Object.keys(ADJUST_REASONS) as AdjustMode[]).find((m) => ADJUST_REASONS[m].includes(r)) ?? "add";
+export const NOTE_HINT: Record<string, string> = {
+  "Opening stock": "Count sheet / shelf reference",
+  "Customer return": "Customer name or invoice no.",
+  "Physical count": "Count reference",
+};
 export const AWARD_CLASSES = ["Individual", "Team", "Participation", "Corporate"] as const;
 
 export const inr = (n: number | null | undefined) =>

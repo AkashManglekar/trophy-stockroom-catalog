@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
   RECEIPT_TYPES,
+  RECEIVE_CHOICES,
   inr,
   num,
   type Product,
@@ -558,7 +559,7 @@ function ReceivePage() {
           role="group"
           aria-label="Receipt type"
         >
-          {(Object.keys(RECEIPT_TYPES) as ReceiptType[]).map((k) => (
+          {RECEIVE_CHOICES.map(({ type: k, label }) => (
             <button
               key={k}
               onClick={() => upd((d) => ({ ...d, type: k }))}
@@ -568,16 +569,14 @@ function ReceivePage() {
                 draft.type === k && "bg-card text-primary shadow-sm",
               )}
             >
-              {RECEIPT_TYPES[k].label}
+              {label}
             </button>
           ))}
         </div>
         <p className="text-sm text-muted-foreground">
           {draft.type === "bill"
             ? "Stock bought from a vendor. Cost and preferred vendor update to this bill."
-            : draft.type === "opening"
-              ? "Stock already on the shelf before you started using this system. Type existing product codes in the Code column, or add new products."
-              : "Items a customer returned in sellable condition. Type the product code from the tag."}
+            : "Items already on the shelf that don't have a code yet and no vendor bill. Each line creates a new product code with its stock. For products that already have a code — opening stock, customer returns, recounts — use Products → Adjust stock."}
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr]">
           <Field label={draft.type === "bill" ? "Vendor" : "Vendor (optional)"}>
@@ -747,7 +746,7 @@ function ReceivePage() {
         <Empty>
           {draft.type === "bill"
             ? "No lines yet. Upload the vendor bill above — vendor codes seen before map to your codes instantly."
-            : "Add a line and type the product code, or add a new product."}
+            : "Add a line for each new item. Products that already have a code are adjusted from Products → Adjust stock."}
         </Empty>
       ) : (
         <Card>

@@ -153,12 +153,19 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     body: (
       <Ul>
         <li>
-          <b>Opening stock</b> — stock already on the shelf. Type the product code in the Code
-          column with the counted quantity; add new products for items without a code.
+          These are <b>stock adjustments</b>, not bills. Products → <b>Adjust stock</b> → pick the
+          reason (Opening stock, Customer return, Physical count, Damaged…) → type or scan each
+          product code and the quantity → Save. One product? Open it → Stock → Add, Remove or Set
+          count.
         </li>
         <li>
-          <b>Customer return</b> — type the code from the tag and the sellable quantity. Neither
-          changes cost or vendor.
+          <b>Set count</b> sets stock to what you counted; Add and Remove change it by the quantity.
+          Every change is logged on the product with who, when and why. None of them change cost or
+          vendor.
+        </li>
+        <li>
+          Item on the shelf with no code yet? Receive stock → <b>New items (no bill)</b> creates its
+          code and opening stock.
         </li>
       </Ul>
     ),
@@ -186,7 +193,7 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           Whole receipt wrong → Receive stock → Recent receipts → open it → Reverse this receipt.
         </li>
         <li>
-          Damaged, lost or count differs → Products → open item → Stock → enter −2 or +3 with a
+          Damaged, lost or count differs → Products → open item → Stock → Remove or Set count with a
           reason.
         </li>
         <li>

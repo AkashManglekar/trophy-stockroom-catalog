@@ -855,6 +855,10 @@ export type Database = {
         Returns: string
       }
       withdraw_bill: { Args: { p_id: string }; Returns: undefined }
+      adjust_stock_bulk: {
+        Args: { p_lines: Json; p_reason: string; p_note?: string }
+        Returns: number
+      }
       adjust_stock: {
         Args: {
           p_note: string

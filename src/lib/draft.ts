@@ -119,6 +119,8 @@ function read(): Draft {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(KEY) : null;
     cache = raw ? { ...newDraft(), ...JSON.parse(raw) } : newDraft();
+    // Customer returns moved to Products → Adjust stock.
+    if (cache && (cache.type as string) === "return") cache = { ...cache, type: "bill" };
   } catch {
     cache = newDraft();
   }
