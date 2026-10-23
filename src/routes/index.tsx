@@ -6,7 +6,7 @@ import { CatalogueError, CatalogueView, catalogueHead } from "@/components/Catal
 /** On catalogue.sportagon.in the home page is the public catalogue; elsewhere it opens the app. */
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
-    if (!isCatalogueHost()) throw redirect({ to: "/receive" });
+    if (!isCatalogueHost()) throw redirect({ to: "/dashboard" });
   },
   loader: () => getCatalogue(),
   head: catalogueHead,

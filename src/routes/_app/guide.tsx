@@ -215,6 +215,36 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: "money",
+    title: "Sales, enquiries and paying vendors",
+    body: (
+      <Ul>
+        <li>
+          <b>Sales</b> come from Zoho Books: each invoice takes stock out, credit notes put it back,
+          voided or edited invoices correct themselves. Sales → Sync now, or Import Zoho export.
+          Match any Zoho item the app couldn't recognise once, under “Zoho items to match”.
+        </li>
+        <li>
+          <b>Enquiries</b> arrive from “Request quote” on the public catalogue. Call or WhatsApp
+          from the enquiry, then move it to contacted → quoted → won or lost.
+        </li>
+        <li>
+          <b>Paying vendors</b>: Bills → open the bill → Record payment (amount, date, mode, UTR).
+          Due dates come from the vendor's payment terms. “To pay” and “Overdue” filters show what's
+          outstanding; each vendor page shows total business, paid, owed and their rating.
+        </li>
+        <li>
+          After a delivery, <b>Rate this delivery</b> on the bill — quality, delivery and pricing —
+          so vendor scorecards stay honest.
+        </li>
+        <li>
+          <b>Dashboard</b>: sales and margin this month, stock value, what to reorder, slow movers,
+          bills due and the enquiry pipeline.
+        </li>
+      </Ul>
+    ),
+  },
+  {
     id: "approvals",
     title: "Accounts and bill approvals",
     body: (

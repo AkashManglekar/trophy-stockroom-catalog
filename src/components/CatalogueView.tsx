@@ -7,11 +7,13 @@ import {
   Mail,
   MessageCircle,
   Phone,
+  Plus,
   Search,
   X,
 } from "lucide-react";
 import type { CatalogueData, CatalogueItem } from "@/lib/catalogue.functions";
 import { cn } from "@/lib/utils";
+import { QuoteCart, useQuoteCart } from "@/components/QuoteCart";
 import { LOGO_BLUE, LOGO_MARK, LOGO_WHITE } from "@/lib/domain";
 
 const SITE = "https://catalogue.sportagon.in";
@@ -157,7 +159,10 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
           </div>
         )}
       </main>
-      <footer className="border-t bg-card" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <footer
+        className="border-t bg-card pb-20"
+        style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+      >
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-[1.3fr_1fr_1fr] sm:gap-10">
           <div className="grid content-start gap-3">
             <img
@@ -234,6 +239,7 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
         </div>
       </footer>
       {lb && <Lightbox item={lb.item} start={lb.i} size={lb.size} onClose={() => setLb(null)} />}
+      <QuoteCart phoneE164={PHONE_E164} />
     </div>
   );
 }
@@ -248,6 +254,9 @@ function ItemCard({
   const track = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
   const [size, setSize] = useState(0);
+  const cart = useQuoteCart();
+  const v = it.variants[size];
+  const inCart = v ? (cart.lines.find((l) => l.sku === v.sku)?.qty ?? 0) : 0;
   const step = (d: number) =>
     track.current?.scrollBy({ left: d * track.current.clientWidth, behavior: "smooth" });
   return (
@@ -331,6 +340,23 @@ function ItemCard({
           <p className="wrap-any text-[12.5px] text-muted-foreground sm:text-[13.5px]">
             {it.description}
           </p>
+        )}
+        {v && (
+          <button
+            type="button"
+            onClick={() =>
+              cart.add({ sku: v.sku, code: it.code, name: it.name, size: v.label, price: v.price })
+            }
+            className={cn(
+              "mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-[12.5px] font-bold",
+              inCart
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-primary text-primary hover:bg-primary hover:text-primary-foreground",
+            )}
+          >
+            <Plus className="size-3.5" />
+            {inCart ? `${inCart} in quote · add more` : "Add to quote"}
+          </button>
         )}
       </div>
     </article>

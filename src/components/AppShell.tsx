@@ -1,7 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BookOpen,
+  Gauge,
+  Inbox,
+  Menu,
+  TrendingUp,
   LayoutGrid,
   LogOut,
   PackagePlus,
@@ -15,15 +19,27 @@ import { cn } from "@/lib/utils";
 import { LOGO_WHITE } from "@/lib/domain";
 
 export type NavKey =
-  "/receive" | "/bills" | "/products" | "/vendors" | "/export" | "/settings" | "/guide";
-const NAV: { to: NavKey; label: string; short: string; icon: typeof Store }[] = [
-  { to: "/receive", label: "Receive stock", short: "Receive", icon: PackagePlus },
+  | "/dashboard"
+  | "/receive"
+  | "/bills"
+  | "/products"
+  | "/sales"
+  | "/enquiries"
+  | "/vendors"
+  | "/export"
+  | "/settings"
+  | "/guide";
+const NAV: { to: NavKey; label: string; short: string; icon: typeof Store; main?: boolean }[] = [
+  { to: "/dashboard", label: "Dashboard", short: "Home", icon: Gauge, main: true },
+  { to: "/receive", label: "Receive", short: "Receive", icon: PackagePlus, main: true },
   { to: "/bills", label: "Bills", short: "Bills", icon: ReceiptText },
-  { to: "/products", label: "Products", short: "Products", icon: LayoutGrid },
+  { to: "/products", label: "Products", short: "Products", icon: LayoutGrid, main: true },
+  { to: "/sales", label: "Sales", short: "Sales", icon: TrendingUp },
+  { to: "/enquiries", label: "Enquiries", short: "Enquiries", icon: Inbox, main: true },
   { to: "/vendors", label: "Vendors", short: "Vendors", icon: Store },
-  { to: "/export", label: "Zoho export", short: "Zoho", icon: UploadCloud },
+  { to: "/export", label: "Zoho", short: "Zoho", icon: UploadCloud },
   { to: "/settings", label: "Settings", short: "Settings", icon: Settings },
-  { to: "/guide", label: "How to use", short: "Guide", icon: BookOpen },
+  { to: "/guide", label: "Guide", short: "Guide", icon: BookOpen },
 ];
 
 export function AppShell({
@@ -35,6 +51,10 @@ export function AppShell({
 }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { email, role, signOut } = useAuth();
+  const [more, setMore] = useState(false);
+  const extra = NAV.filter((n) => !n.main);
+  const extraOn = extra.some((n) => path.startsWith(n.to));
+  const extraBadge = extra.reduce((a, n) => a + (badges[n.to] ?? 0), 0);
   return (
     <div className="min-h-dvh">
       <header
@@ -42,7 +62,7 @@ export function AppShell({
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-2.5">
-          <Link to="/receive" className="flex items-center gap-2.5">
+          <Link to="/dashboard" className="flex items-center gap-2.5">
             <img
               src={LOGO_WHITE}
               alt="Sportagon"
@@ -54,7 +74,7 @@ export function AppShell({
               Stockroom
             </span>
           </Link>
-          <nav className="ml-auto hidden gap-1 md:flex" aria-label="Sections">
+          <nav className="ml-auto hidden gap-0.5 lg:flex" aria-label="Sections">
             {NAV.map((n) => {
               const on = path.startsWith(n.to);
               const b = badges[n.to];
@@ -63,7 +83,7 @@ export function AppShell({
                   key={n.to}
                   to={n.to}
                   className={cn(
-                    "relative rounded-full px-3 py-1.5 text-[12px] font-bold uppercase tracking-wide transition-colors",
+                    "relative rounded-full px-2.5 py-1.5 text-[11.5px] font-bold uppercase tracking-wide transition-colors",
                     on
                       ? "bg-accent text-accent-foreground"
                       : "opacity-80 hover:bg-white/10 hover:opacity-100",
@@ -79,9 +99,9 @@ export function AppShell({
               );
             })}
           </nav>
-          <div className="ml-auto flex items-center gap-2 md:ml-2">
+          <div className="ml-auto flex items-center gap-2 lg:ml-2">
             <span
-              className="hidden max-w-40 truncate text-[11px] opacity-80 lg:inline"
+              className="hidden max-w-40 truncate text-[11px] opacity-80 2xl:inline"
               title={email ?? ""}
             >
               {email} · {role}
@@ -97,13 +117,49 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 pb-safe md:pb-12">{children}</main>
+      <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 pb-safe lg:pb-12">{children}</main>
+      {more && (
+        <div
+          className="fixed inset-0 z-40 bg-[#050B1C]/40 lg:hidden"
+          onClick={() => setMore(false)}
+        >
+          <div
+            className="absolute inset-x-2 grid grid-cols-3 gap-1 rounded-2xl bg-card p-2 shadow-2xl"
+            style={{ bottom: "calc(76px + env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {extra.map((n) => {
+              const I = n.icon;
+              const b = badges[n.to];
+              return (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  onClick={() => setMore(false)}
+                  className={cn(
+                    "relative grid justify-items-center gap-1 rounded-xl p-3 text-[11px] font-bold uppercase tracking-wide",
+                    path.startsWith(n.to) ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                  )}
+                >
+                  <I className="size-5" />
+                  {n.short}
+                  {b ? (
+                    <span className="absolute right-2 top-2 min-w-4 rounded-full bg-warning px-1 text-center text-[9px] leading-4 text-warning-foreground">
+                      {b}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 bg-primary px-1 pt-1.5 text-primary-foreground shadow-[0_-4px_18px_rgba(0,0,0,.18)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 bg-primary px-1 pt-1.5 text-primary-foreground shadow-[0_-4px_18px_rgba(0,0,0,.18)] lg:hidden"
         style={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom))" }}
         aria-label="Sections"
       >
-        {NAV.map((n) => {
+        {NAV.filter((n) => n.main).map((n) => {
           const on = path.startsWith(n.to);
           const b = badges[n.to];
           const I = n.icon;
@@ -111,8 +167,9 @@ export function AppShell({
             <Link
               key={n.to}
               to={n.to}
+              onClick={() => setMore(false)}
               className={cn(
-                "grid min-w-0 justify-items-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[9.5px] font-bold uppercase tracking-wide",
+                "grid min-w-0 justify-items-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[10px] font-bold uppercase tracking-wide",
                 on ? "bg-white/15" : "opacity-75",
               )}
             >
@@ -128,6 +185,24 @@ export function AppShell({
             </Link>
           );
         })}
+        <button
+          onClick={() => setMore((v) => !v)}
+          aria-expanded={more}
+          className={cn(
+            "grid min-w-0 justify-items-center gap-0.5 rounded-xl px-0.5 py-1.5 text-[10px] font-bold uppercase tracking-wide",
+            more || extraOn ? "bg-white/15" : "opacity-75",
+          )}
+        >
+          <span className="relative">
+            <Menu className={cn("size-[22px]", (more || extraOn) && "text-accent")} />
+            {extraBadge ? (
+              <span className="absolute -right-3 -top-1.5 min-w-4 rounded-full bg-warning px-1 text-center text-[9px] leading-4 text-warning-foreground">
+                {extraBadge}
+              </span>
+            ) : null}
+          </span>
+          <span>More</span>
+        </button>
       </nav>
     </div>
   );

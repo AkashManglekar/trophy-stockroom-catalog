@@ -12,6 +12,10 @@ import {
   type ReceiptLine,
   type RefData,
   type Submission,
+  type BillPayment,
+  type VendorReview,
+  type SaleLine,
+  type QuoteRequest,
   type Vendor,
   type VendorCode,
 } from "./domain";
@@ -149,6 +153,62 @@ export const useBills = () =>
     },
   });
 export type BillWithLines = Receipt & { lines: ReceiptLine[] };
+
+export const usePayments = () =>
+  useQuery({
+    queryKey: ["payments"],
+    staleTime: STALE,
+    queryFn: () =>
+      all<BillPayment>(
+        supabase.from("bill_payments").select("*").order("paid_on", { ascending: false }),
+      ),
+  });
+export const useReviews = () =>
+  useQuery({
+    queryKey: ["reviews"],
+    staleTime: STALE,
+    queryFn: () =>
+      all<VendorReview>(
+        supabase.from("vendor_reviews").select("*").order("created_at", { ascending: false }),
+      ),
+  });
+/** Sales lines (Zoho invoices / credit notes) from the last `days` days. */
+export const useSales = (days = 400) =>
+  useQuery({
+    queryKey: ["sales", days],
+    staleTime: STALE,
+    queryFn: async () => {
+      const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+      const out: SaleLine[] = [];
+      for (let from = 0; ; from += 1000) {
+        const page = await all<SaleLine>(
+          supabase
+            .from("sales_lines")
+            .select("*")
+            .or(`doc_date.gte.${since},doc_date.is.null`)
+            .order("doc_date", { ascending: false })
+            .range(from, from + 999),
+        );
+        out.push(...page);
+        if (page.length < 1000) break;
+      }
+      return out;
+    },
+  });
+export const useQuotes = () =>
+  useQuery({
+    queryKey: ["quotes"],
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+    queryFn: () =>
+      all<QuoteRequest>(
+        supabase
+          .from("quote_requests")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(500),
+      ),
+  });
 
 export const useAdjustments = (productId: string | null) =>
   useQuery({

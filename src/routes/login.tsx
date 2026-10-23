@@ -37,7 +37,7 @@ function Login() {
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
-    if (session && mode !== "newpw") nav({ to: "/receive" });
+    if (session && mode !== "newpw") nav({ to: "/dashboard" });
   }, [session, mode, nav]);
 
   async function submit(e: React.FormEvent) {
@@ -68,7 +68,7 @@ function Login() {
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
         toast.success("Password set");
-        nav({ to: "/receive" });
+        nav({ to: "/dashboard" });
       }
     } catch (err) {
       toast.error((err as Error).message);

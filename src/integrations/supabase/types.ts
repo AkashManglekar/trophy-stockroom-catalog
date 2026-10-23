@@ -155,6 +155,219 @@ export type Database = {
         }
         Relationships: []
       }
+      bill_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by_email: string | null
+          id: string
+          mode: string | null
+          note: string | null
+          paid_on: string
+          receipt_id: string
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          mode?: string | null
+          note?: string | null
+          paid_on?: string
+          receipt_id: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          mode?: string | null
+          note?: string | null
+          paid_on?: string
+          receipt_id?: string
+          reference?: string | null
+        }
+        Relationships: []
+      }
+      vendor_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          delivery: number | null
+          id: string
+          pricing: number | null
+          quality: number | null
+          receipt_id: string | null
+          vendor_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          delivery?: number | null
+          id?: string
+          pricing?: number | null
+          quality?: number | null
+          receipt_id?: string | null
+          vendor_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          delivery?: number | null
+          id?: string
+          pricing?: number | null
+          quality?: number | null
+          receipt_id?: string | null
+          vendor_id?: string
+        }
+        Relationships: []
+      }
+      sales_lines: {
+        Row: {
+          amount: number | null
+          applied_qty: number
+          customer: string | null
+          doc_date: string | null
+          doc_id: string
+          doc_kind: string
+          doc_no: string | null
+          doc_status: string | null
+          id: string
+          item_name: string | null
+          line_key: string
+          product_id: string | null
+          qty: number
+          rate: number | null
+          sku: string | null
+          source: string
+          updated_at: string
+          zoho_item_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          applied_qty?: number
+          customer?: string | null
+          doc_date?: string | null
+          doc_id: string
+          doc_kind: string
+          doc_no?: string | null
+          doc_status?: string | null
+          id?: string
+          item_name?: string | null
+          line_key: string
+          product_id?: string | null
+          qty?: number
+          rate?: number | null
+          sku?: string | null
+          source?: string
+          updated_at?: string
+          zoho_item_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          applied_qty?: number
+          customer?: string | null
+          doc_date?: string | null
+          doc_id?: string
+          doc_kind?: string
+          doc_no?: string | null
+          doc_status?: string | null
+          id?: string
+          item_name?: string | null
+          line_key?: string
+          product_id?: string | null
+          qty?: number
+          rate?: number | null
+          sku?: string | null
+          source?: string
+          updated_at?: string
+          zoho_item_id?: string | null
+        }
+        Relationships: []
+      }
+      zoho_item_map: {
+        Row: {
+          created_at: string
+          product_id: string
+          zoho_key: string
+        }
+        Insert: {
+          created_at?: string
+          product_id: string
+          zoho_key: string
+        }
+        Update: {
+          created_at?: string
+          product_id?: string
+          zoho_key?: string
+        }
+        Relationships: []
+      }
+      quote_requests: {
+        Row: {
+          city: string | null
+          created_at: string
+          email: string | null
+          est_total: number | null
+          handled_by_email: string | null
+          id: string
+          internal_notes: string | null
+          items: Json
+          name: string
+          needed_by: string | null
+          notes: string | null
+          organisation: string | null
+          phone: string
+          ref: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          est_total?: number | null
+          handled_by_email?: string | null
+          id?: string
+          internal_notes?: string | null
+          items?: Json
+          name: string
+          needed_by?: string | null
+          notes?: string | null
+          organisation?: string | null
+          phone: string
+          ref?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          est_total?: number | null
+          handled_by_email?: string | null
+          id?: string
+          internal_notes?: string | null
+          items?: Json
+          name?: string
+          needed_by?: string | null
+          notes?: string | null
+          organisation?: string | null
+          phone?: string
+          ref?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       code_counters: {
         Row: {
           next_no: number
@@ -519,6 +732,7 @@ export type Database = {
       }
       receipts: {
         Row: {
+          due_date: string | null
           gst_type: string | null
           gst_breakup: Json | null
           edited_by_email: string | null
@@ -543,6 +757,7 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          due_date?: string | null
           gst_type?: string | null
           gst_breakup?: Json | null
           edited_by_email?: string | null
@@ -567,6 +782,7 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          due_date?: string | null
           gst_type?: string | null
           gst_breakup?: Json | null
           edited_by_email?: string | null
@@ -886,6 +1102,9 @@ export type Database = {
       }
       can_approve: { Args: never; Returns: boolean }
       can_publish: { Args: never; Returns: boolean }
+      apply_sales: { Args: { p_docs: Json; p_source?: string }; Returns: Json }
+      map_sale_item: { Args: { p_key: string; p_product: string }; Returns: number }
+      set_bill_due: { Args: { p_receipt: string; p_due: string | null }; Returns: undefined }
       delete_bill: { Args: { p_receipt: string }; Returns: string[] }
       update_bill: { Args: { p_receipt: string; p_header: Json; p_lines: Json }; Returns: string[] }
       size_label: { Args: { p_size: string; p_unit: string }; Returns: string }

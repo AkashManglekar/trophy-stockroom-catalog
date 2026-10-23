@@ -12,6 +12,11 @@ export type Receipt = Tables<"receipts">;
 export type ReceiptLine = Tables<"receipt_lines">;
 export type Adjustment = Tables<"adjustments">;
 export type Submission = Tables<"bill_submissions">;
+export type BillPayment = Tables<"bill_payments">;
+export type VendorReview = Tables<"vendor_reviews">;
+export type SaleLine = Tables<"sales_lines">;
+export type QuoteRequest = Tables<"quote_requests">;
+export const PAY_MODES = ["UPI", "NEFT / RTGS", "IMPS", "Cash", "Cheque", "Card", "Other"];
 export type Role = "owner" | "editor" | "contributor" | "viewer";
 
 /** The only account that can ever be owner (super admin). Enforced in the database too. */

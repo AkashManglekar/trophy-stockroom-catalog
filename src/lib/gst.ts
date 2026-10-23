@@ -42,11 +42,16 @@ export const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28, 40];
 
 export type SupplyType = "igst" | "intra";
 /** Two-digit GST state code of a vendor: from the GSTIN, else its source of supply / state. */
-export function vendorStateCode(v: {
-  gstin?: string | null;
-  source_of_supply?: string | null;
-  state?: string | null;
-} | null | undefined): string | null {
+export function vendorStateCode(
+  v:
+    | {
+        gstin?: string | null;
+        source_of_supply?: string | null;
+        state?: string | null;
+      }
+    | null
+    | undefined,
+): string | null {
   if (!v) return null;
   const g = (v.gstin ?? "").trim();
   if (/^\d{2}/.test(g)) return g.slice(0, 2);

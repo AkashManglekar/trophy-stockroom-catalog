@@ -9,6 +9,8 @@ import {
   errMsg,
   repriceProducts,
   useBills,
+  usePayments,
+  useReviews,
   useInvalidate,
   useProducts,
   useRefData,
@@ -18,6 +20,8 @@ import {
 import { CHARGE_LABELS, newDraft, newLine } from "@/lib/draft";
 import { chargeAllocation } from "@/lib/receive-plan";
 import { withThumbs } from "@/lib/photos";
+import { PAY_LABEL, PAY_TONE, billMoney, today } from "@/lib/finance";
+import { PAY_MODES } from "@/lib/domain";
 import { GST_RATES, SUPPLY_LABEL, supplyTypeFor, type SupplyType } from "@/lib/gst";
 import {
   Card,
@@ -68,6 +72,8 @@ function BillsPage() {
   const set = (patch: Partial<Search>) =>
     nav({ search: (s: Search) => ({ ...s, ...patch }), replace: true });
   const bills = useBills();
+  const payments = usePayments();
+  const money = (b: BillWithLines) => billMoney(b, payments.data ?? []);
   const vendors = useVendors();
   const products = useProducts();
   const [q, setQ] = useState(search.q ?? "");
@@ -84,6 +90,9 @@ function BillsPage() {
       if (search.kind === "bill" && b.receipt_type !== "bill") return false;
       if (search.kind === "nobill" && b.receipt_type === "bill") return false;
       if (search.kind === "reversed" && !b.reversed_at) return false;
+      if (search.kind === "unpaid" && !["unpaid", "partly", "overdue"].includes(money(b).status))
+        return false;
+      if (search.kind === "overdue" && money(b).status !== "overdue") return false;
       if (!t) return true;
       const hay = [
         vName(b.vendor_id),
@@ -100,11 +109,13 @@ function BillsPage() {
       return hay.includes(t);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bills.data, q, search.kind, prodById, vendors.data]);
+  }, [bills.data, q, search.kind, prodById, vendors.data, payments.data]);
 
   const sel = search.sel ? (bills.data ?? []).find((b) => b.id === search.sel) : undefined;
   const active = (bills.data ?? []).filter((b) => !b.reversed_at && b.receipt_type === "bill");
   const spend = active.reduce((a, b) => a + Number(b.total_cost ?? goodsOf(b)), 0);
+  const owed = active.reduce((a, b) => a + money(b).balance, 0);
+  const overdue = active.filter((b) => money(b).status === "overdue");
 
   return (
     <>
@@ -137,6 +148,8 @@ function BillsPage() {
             <option value="">All receipts</option>
             <option value="bill">Vendor bills</option>
             <option value="nobill">Without a bill</option>
+            <option value="unpaid">To pay</option>
+            <option value="overdue">Overdue</option>
             <option value="reversed">Reversed</option>
           </Select>
         </Field>
@@ -146,6 +159,14 @@ function BillsPage() {
         <Pill>
           {active.length} active bills · {inr(Math.round(spend))} cost to company
         </Pill>
+        {owed > 0.5 && <Pill tone="warn">{inr(Math.round(owed))} to pay</Pill>}
+        {overdue.length > 0 && (
+          <button onClick={() => set({ kind: "overdue" })}>
+            <Pill tone="bad" className="cursor-pointer">
+              {overdue.length} overdue
+            </Pill>
+          </button>
+        )}
       </div>
       <div
         className={cn(
@@ -191,9 +212,20 @@ function BillsPage() {
                       {inr(Number(b.total_cost ?? goodsOf(b)))}
                     </span>
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {b.lines.length} lines · {units} units ·{" "}
-                    {b.lines.filter((l) => l.created_new).length} new
+                  <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      {b.lines.length} lines · {units} units ·{" "}
+                      {b.lines.filter((l) => l.created_new).length} new
+                    </span>
+                    {(() => {
+                      const m = money(b);
+                      return m.status === "none" || m.status === "reversed" ? null : (
+                        <Pill tone={PAY_TONE[m.status]}>
+                          {PAY_LABEL[m.status]}
+                          {m.balance > 0.5 ? ` · ${inr(m.balance)}` : ""}
+                        </Pill>
+                      );
+                    })()}
                   </span>
                 </button>
               );
@@ -386,6 +418,9 @@ function BillPanel({
               })}
             </div>
           </section>
+
+          {isBill && !b.reversed_at && <BillPayments b={b} />}
+          {isBill && b.vendor_id && <BillFeedback b={b} />}
 
           <section className="grid gap-1 text-xs text-muted-foreground">
             <span>
@@ -875,5 +910,340 @@ function BillEditor({
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Due date, what's paid and what's left, with payment entries. */
+function BillPayments({ b }: { b: BillWithLines }) {
+  const { canEdit, email } = useAuth();
+  const payments = usePayments();
+  const inv = useInvalidate();
+  const mine = (payments.data ?? []).filter((p) => p.receipt_id === b.id);
+  const m = billMoney(b, payments.data ?? []);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState({
+    amount: "",
+    paid_on: today(),
+    mode: "UPI",
+    reference: "",
+    note: "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  async function add() {
+    const amount = num(f.amount);
+    if (!amount || amount <= 0) {
+      toast.error("Enter the amount paid");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.from("bill_payments").insert({
+      receipt_id: b.id,
+      amount,
+      paid_on: f.paid_on,
+      mode: f.mode,
+      reference: f.reference.trim() || null,
+      note: f.note.trim() || null,
+      created_by_email: email,
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Payment of ${inr(amount)} recorded`);
+    setAdding(false);
+    setF({ amount: "", paid_on: today(), mode: "UPI", reference: "", note: "" });
+    await inv("payments");
+  }
+  async function remove(id: string) {
+    if (!confirm("Remove this payment?")) return;
+    const { error } = await supabase.from("bill_payments").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await inv("payments");
+  }
+  async function setDue(v: string) {
+    const { error } = await supabase.rpc("set_bill_due", { p_receipt: b.id, p_due: v || null });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Due date saved");
+    await inv("receipts");
+  }
+
+  return (
+    <section className="grid gap-2 rounded-xl border p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+          Payment
+        </h4>
+        <Pill tone={PAY_TONE[m.status]}>
+          {PAY_LABEL[m.status]}
+          {m.status === "overdue" ? ` · ${m.overdueDays} day${m.overdueDays === 1 ? "" : "s"}` : ""}
+        </Pill>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center tabular-nums">
+        <div className="rounded-lg bg-muted p-2">
+          <div className="text-[11px] text-muted-foreground">Payable</div>
+          <b>{inr(m.total)}</b>
+        </div>
+        <div className="rounded-lg bg-muted p-2">
+          <div className="text-[11px] text-muted-foreground">Paid</div>
+          <b>{inr(m.paid)}</b>
+        </div>
+        <div className={cn("rounded-lg p-2", m.balance > 0.5 ? "bg-warning/20" : "bg-success/15")}>
+          <div className="text-[11px] text-muted-foreground">Balance</div>
+          <b>{inr(m.balance)}</b>
+        </div>
+      </div>
+      <Field
+        label="Due date"
+        hint="From the vendor's payment terms; change it if the bill says otherwise."
+      >
+        <TextInput
+          type="date"
+          disabled={!canEdit}
+          defaultValue={String(b.due_date ?? "").slice(0, 10)}
+          onBlur={(e) => {
+            if (e.target.value !== String(b.due_date ?? "").slice(0, 10)) setDue(e.target.value);
+          }}
+        />
+      </Field>
+      {mine.length > 0 && (
+        <ul className="grid gap-1">
+          {mine.map((p) => (
+            <li
+              key={p.id}
+              className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg bg-muted/50 px-2.5 py-1.5 text-xs"
+            >
+              <b className="tabular-nums">{inr(Number(p.amount))}</b>
+              <span>{String(p.paid_on).slice(0, 10)}</span>
+              <span>{p.mode}</span>
+              {p.reference && <span className="font-mono">{p.reference}</span>}
+              {p.note && <span className="text-muted-foreground">{p.note}</span>}
+              {canEdit && (
+                <button
+                  className="ml-auto text-destructive"
+                  onClick={() => remove(p.id)}
+                  title="Remove payment"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit &&
+        m.balance > 0.5 &&
+        (adding ? (
+          <div className="grid gap-2 rounded-lg border bg-muted/30 p-2.5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <Field label="Amount ₹">
+                <TextInput
+                  inputMode="decimal"
+                  value={f.amount}
+                  placeholder={String(m.balance)}
+                  onChange={(e) => setF({ ...f, amount: e.target.value })}
+                />
+              </Field>
+              <Field label="Paid on">
+                <TextInput
+                  type="date"
+                  value={f.paid_on}
+                  onChange={(e) => setF({ ...f, paid_on: e.target.value })}
+                />
+              </Field>
+              <Field label="Mode">
+                <Select value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })}>
+                  {PAY_MODES.map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Reference / UTR">
+                <TextInput
+                  value={f.reference}
+                  onChange={(e) => setF({ ...f, reference: e.target.value })}
+                />
+              </Field>
+              <Field label="Note" className="sm:col-span-2">
+                <TextInput value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+              </Field>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" className="rounded-full" disabled={busy} onClick={add}>
+                Save payment
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full"
+                onClick={() => setF({ ...f, amount: String(m.balance) })}
+              >
+                Pay full balance
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full"
+                onClick={() => setAdding(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-fit rounded-full"
+            onClick={() => setAdding(true)}
+          >
+            <Plus className="size-4" /> Record payment
+          </Button>
+        ))}
+    </section>
+  );
+}
+
+function Stars({
+  value,
+  onChange,
+  label,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs">{label}</span>
+      <span className="flex gap-0.5" role="radiogroup" aria-label={label}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={value === n}
+            onClick={() => onChange(n)}
+            className={cn(
+              "text-lg leading-none",
+              n <= value ? "text-warning" : "text-muted-foreground/40",
+            )}
+          >
+            ★
+          </button>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/** Quick rating of this delivery — feeds the vendor's scorecard. */
+function BillFeedback({ b }: { b: BillWithLines }) {
+  const { canContribute, email } = useAuth();
+  const reviews = useReviews();
+  const inv = useInvalidate();
+  const existing = (reviews.data ?? []).filter((r) => r.receipt_id === b.id);
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ quality: 0, delivery: 0, pricing: 0, comment: "" });
+  async function save() {
+    if (!f.quality && !f.delivery && !f.pricing && !f.comment.trim()) {
+      toast.error("Add a rating or a comment");
+      return;
+    }
+    const { error } = await supabase.from("vendor_reviews").insert({
+      vendor_id: b.vendor_id!,
+      receipt_id: b.id,
+      quality: f.quality || null,
+      delivery: f.delivery || null,
+      pricing: f.pricing || null,
+      comment: f.comment.trim() || null,
+      created_by_email: email,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Feedback saved");
+    setOpen(false);
+    await inv("reviews");
+  }
+  return (
+    <section className="grid gap-2 rounded-xl border p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+          Vendor feedback
+        </h4>
+        {canContribute && !open && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setOpen(true)}
+          >
+            Rate this delivery
+          </Button>
+        )}
+      </div>
+      {existing.map((r) => (
+        <p key={r.id} className="text-xs">
+          <span className="text-warning">
+            {"★".repeat(
+              Math.round(
+                ((r.quality ?? 0) + (r.delivery ?? 0) + (r.pricing ?? 0)) /
+                  ([r.quality, r.delivery, r.pricing].filter(Boolean).length || 1),
+              ),
+            )}
+          </span>{" "}
+          {r.quality ? `quality ${r.quality} · ` : ""}
+          {r.delivery ? `delivery ${r.delivery} · ` : ""}
+          {r.pricing ? `pricing ${r.pricing}` : ""}
+          {r.comment ? ` — ${r.comment}` : ""}
+          <span className="text-muted-foreground"> · {r.created_by_email}</span>
+        </p>
+      ))}
+      {!existing.length && !open && (
+        <p className="text-xs text-muted-foreground">No feedback yet.</p>
+      )}
+      {open && (
+        <div className="grid gap-1.5">
+          <Stars
+            label="Quality of goods"
+            value={f.quality}
+            onChange={(n) => setF({ ...f, quality: n })}
+          />
+          <Stars
+            label="Delivery (on time, complete)"
+            value={f.delivery}
+            onChange={(n) => setF({ ...f, delivery: n })}
+          />
+          <Stars label="Pricing" value={f.pricing} onChange={(n) => setF({ ...f, pricing: n })} />
+          <TextInput
+            placeholder="What went well or wrong? (optional)"
+            value={f.comment}
+            onChange={(e) => setF({ ...f, comment: e.target.value })}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" className="rounded-full" onClick={save}>
+              Save feedback
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-full"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

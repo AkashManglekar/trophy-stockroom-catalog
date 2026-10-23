@@ -14,10 +14,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as CatalogueRouteImport } from './routes/catalogue'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppBillsRouteImport } from './routes/_app/bills'
+import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppEnquiriesRouteImport } from './routes/_app/enquiries'
 import { Route as AppExportRouteImport } from './routes/_app/export'
 import { Route as AppGuideRouteImport } from './routes/_app/guide'
 import { Route as AppProductsRouteImport } from './routes/_app/products'
 import { Route as AppReceiveRouteImport } from './routes/_app/receive'
+import { Route as AppSalesRouteImport } from './routes/_app/sales'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
 import { Route as MediaSplatRouteImport } from './routes/media.$'
@@ -46,6 +49,16 @@ const AppBillsRoute = AppBillsRouteImport.update({
   path: '/bills',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEnquiriesRoute = AppEnquiriesRouteImport.update({
+  id: '/enquiries',
+  path: '/enquiries',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppExportRoute = AppExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -64,6 +77,11 @@ const AppProductsRoute = AppProductsRouteImport.update({
 const AppReceiveRoute = AppReceiveRouteImport.update({
   id: '/receive',
   path: '/receive',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSalesRoute = AppSalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -87,10 +105,13 @@ export interface FileRoutesByFullPath {
   '/catalogue': typeof CatalogueRoute
   '/login': typeof LoginRoute
   '/bills': typeof AppBillsRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/enquiries': typeof AppEnquiriesRoute
   '/export': typeof AppExportRoute
   '/guide': typeof AppGuideRoute
   '/products': typeof AppProductsRoute
   '/receive': typeof AppReceiveRoute
+  '/sales': typeof AppSalesRoute
   '/settings': typeof AppSettingsRoute
   '/vendors': typeof AppVendorsRoute
   '/media/$': typeof MediaSplatRoute
@@ -100,10 +121,13 @@ export interface FileRoutesByTo {
   '/catalogue': typeof CatalogueRoute
   '/login': typeof LoginRoute
   '/bills': typeof AppBillsRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/enquiries': typeof AppEnquiriesRoute
   '/export': typeof AppExportRoute
   '/guide': typeof AppGuideRoute
   '/products': typeof AppProductsRoute
   '/receive': typeof AppReceiveRoute
+  '/sales': typeof AppSalesRoute
   '/settings': typeof AppSettingsRoute
   '/vendors': typeof AppVendorsRoute
   '/media/$': typeof MediaSplatRoute
@@ -115,10 +139,13 @@ export interface FileRoutesById {
   '/catalogue': typeof CatalogueRoute
   '/login': typeof LoginRoute
   '/_app/bills': typeof AppBillsRoute
+  '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/enquiries': typeof AppEnquiriesRoute
   '/_app/export': typeof AppExportRoute
   '/_app/guide': typeof AppGuideRoute
   '/_app/products': typeof AppProductsRoute
   '/_app/receive': typeof AppReceiveRoute
+  '/_app/sales': typeof AppSalesRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/vendors': typeof AppVendorsRoute
   '/media/$': typeof MediaSplatRoute
@@ -130,10 +157,13 @@ export interface FileRouteTypes {
     | '/catalogue'
     | '/login'
     | '/bills'
+    | '/dashboard'
+    | '/enquiries'
     | '/export'
     | '/guide'
     | '/products'
     | '/receive'
+    | '/sales'
     | '/settings'
     | '/vendors'
     | '/media/$'
@@ -143,10 +173,13 @@ export interface FileRouteTypes {
     | '/catalogue'
     | '/login'
     | '/bills'
+    | '/dashboard'
+    | '/enquiries'
     | '/export'
     | '/guide'
     | '/products'
     | '/receive'
+    | '/sales'
     | '/settings'
     | '/vendors'
     | '/media/$'
@@ -157,10 +190,13 @@ export interface FileRouteTypes {
     | '/catalogue'
     | '/login'
     | '/_app/bills'
+    | '/_app/dashboard'
+    | '/_app/enquiries'
     | '/_app/export'
     | '/_app/guide'
     | '/_app/products'
     | '/_app/receive'
+    | '/_app/sales'
     | '/_app/settings'
     | '/_app/vendors'
     | '/media/$'
@@ -211,6 +247,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBillsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/enquiries': {
+      id: '/_app/enquiries'
+      path: '/enquiries'
+      fullPath: '/enquiries'
+      preLoaderRoute: typeof AppEnquiriesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/export': {
       id: '/_app/export'
       path: '/export'
@@ -239,6 +289,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReceiveRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/sales': {
+      id: '/_app/sales'
+      path: '/sales'
+      fullPath: '/sales'
+      preLoaderRoute: typeof AppSalesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -265,20 +322,26 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppBillsRoute: typeof AppBillsRoute
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppEnquiriesRoute: typeof AppEnquiriesRoute
   AppExportRoute: typeof AppExportRoute
   AppGuideRoute: typeof AppGuideRoute
   AppProductsRoute: typeof AppProductsRoute
   AppReceiveRoute: typeof AppReceiveRoute
+  AppSalesRoute: typeof AppSalesRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppVendorsRoute: typeof AppVendorsRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppBillsRoute: AppBillsRoute,
+  AppDashboardRoute: AppDashboardRoute,
+  AppEnquiriesRoute: AppEnquiriesRoute,
   AppExportRoute: AppExportRoute,
   AppGuideRoute: AppGuideRoute,
   AppProductsRoute: AppProductsRoute,
   AppReceiveRoute: AppReceiveRoute,
+  AppSalesRoute: AppSalesRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppVendorsRoute: AppVendorsRoute,
 }

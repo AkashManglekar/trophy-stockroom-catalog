@@ -8,10 +8,13 @@ import {
   usePhotoMap,
   useProducts,
   useRefData,
+  useInvalidate,
+  useQuotes,
   useSubmissions,
   useVendors,
 } from "@/lib/data";
 import { useDraft } from "@/lib/draft";
+import { syncZohoSales } from "@/lib/zoho-sync.functions";
 import { vendorIssues } from "@/lib/gst";
 import { Notice } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -40,6 +43,19 @@ function AppLayout() {
   const photos = usePhotoMap();
   const draft = useDraft();
   const subs = useSubmissions(hasAccess);
+  const quotes = useQuotes();
+  const inv = useInvalidate();
+  const { canPublish } = useAuth();
+  // Keep stock in step with Zoho sales: a quiet sync when the app opens (server skips if run <15 min ago).
+  useEffect(() => {
+    if (!canPublish) return;
+    syncZohoSales({ data: {} })
+      .then((r) => {
+        if (r.ran && r.unitsApplied) inv("sales", "products", "adjustments", "zoho-status");
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPublish]);
 
   const badges = useMemo(() => {
     const r = ref.data;
@@ -57,6 +73,7 @@ function AppLayout() {
     return {
       "/receive": draft.lines.length + pending,
       "/products": prod,
+      "/enquiries": (quotes.data ?? []).filter((x) => x.status === "new").length,
       "/vendors": vend,
     } as const;
   }, [
@@ -67,6 +84,7 @@ function AppLayout() {
     photos,
     draft.lines.length,
     subs.data,
+    quotes.data,
     canApprove,
     userId,
   ]);

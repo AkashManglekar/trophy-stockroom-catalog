@@ -1,11 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { inr, type Vendor } from "@/lib/domain";
-import { useInvalidate, useProducts, useReceipts, useVendorCodes, useVendors } from "@/lib/data";
+import {
+  useBills,
+  useInvalidate,
+  usePayments,
+  useProducts,
+  useReceipts,
+  useReviews,
+  useVendorCodes,
+  useVendors,
+} from "@/lib/data";
+import { PAY_LABEL, PAY_TONE, billMoney, vendorBusiness } from "@/lib/finance";
 import { blankVendor } from "@/lib/draft";
 import { vendorIssues } from "@/lib/gst";
 import { Card, CardTitle, Code, Empty, PageHead, Pill } from "@/components/kit";
@@ -26,6 +36,11 @@ function VendorsPage() {
   const vendors = useVendors();
   const vcodes = useVendorCodes();
   const receipts = useReceipts();
+  const bills = useBills();
+  const payments = usePayments();
+  const reviews = useReviews();
+  const biz = (id: string) =>
+    vendorBusiness(id, bills.data ?? [], payments.data ?? [], reviews.data ?? []);
   const inv = useInvalidate();
   const { sel } = Route.useSearch();
   const nav = Route.useNavigate();
@@ -110,6 +125,29 @@ function VendorsPage() {
                     <Pill tone="ok">Ready</Pill>
                   )}
                 </span>
+                {(() => {
+                  const b = biz(v.id);
+                  return b.bills ? (
+                    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums">
+                      <span>
+                        {b.bills} bill{b.bills === 1 ? "" : "s"} · {inr(b.total)}
+                      </span>
+                      {b.owed > 0.5 && (
+                        <span
+                          className={
+                            b.overdue > 0.5
+                              ? "text-destructive"
+                              : "text-warning-foreground dark:text-warning"
+                          }
+                        >
+                          {inr(b.owed)} to pay
+                          {b.overdue > 0.5 ? ` (${inr(b.overdue)} overdue)` : ""}
+                        </span>
+                      )}
+                      {b.rating != null && <span className="text-warning">★ {b.rating}</span>}
+                    </span>
+                  ) : null;
+                })()}
                 <span className="wrap-any text-xs text-muted-foreground">
                   {v.gstin || "No GSTIN"} · {v.source_of_supply || "—"} ·{" "}
                   {(vcodes.data ?? []).filter((c) => c.vendor_id === v.id).length} codes mapped ·
@@ -216,16 +254,24 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
           <X className="hidden size-4 lg:block" />
         </Button>
       </div>
-      <VendorForm
-        idPrefix={`v-${v.id}`}
-        value={val}
-        disabled={!canContribute}
-        onChange={setVal}
-        onBlurField={(_k, n) => persist(n)}
-      />
-      {canContribute && (
-        <p className="text-xs text-muted-foreground">Changes save when you leave a field.</p>
-      )}
+      <VendorBusiness v={v} />
+      <details className="rounded-xl border p-3">
+        <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+          Vendor details (Zoho fields)
+        </summary>
+        <div className="mt-3 grid gap-3">
+          <VendorForm
+            idPrefix={`v-${v.id}`}
+            value={val}
+            disabled={!canContribute}
+            onChange={setVal}
+            onBlurField={(_k, n) => persist(n)}
+          />
+          {canContribute && (
+            <p className="text-xs text-muted-foreground">Changes save when you leave a field.</p>
+          )}
+        </div>
+      </details>
       <section className="grid gap-2">
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
           Code map · {maps.length}
@@ -262,5 +308,111 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
         })}
       </section>
     </aside>
+  );
+}
+
+/** Business with this vendor: billed, paid, owed, overdue, products, shortages, rating and feedback. */
+function VendorBusiness({ v }: { v: Vendor }) {
+  const bills = useBills();
+  const payments = usePayments();
+  const reviews = useReviews();
+  const b = vendorBusiness(v.id, bills.data ?? [], payments.data ?? [], reviews.data ?? []);
+  const vb = (bills.data ?? []).filter((x) => x.vendor_id === v.id && x.receipt_type === "bill");
+  const vr = (reviews.data ?? []).filter((r) => r.vendor_id === v.id);
+  const avg = (k: "quality" | "delivery" | "pricing") => {
+    const xs = vr.map((r) => r[k]).filter((x): x is number => x != null);
+    return xs.length ? Math.round((xs.reduce((a, c) => a + c, 0) / xs.length) * 10) / 10 : null;
+  };
+  const tiles: [string, string, (string | undefined)?][] = [
+    ["Total business", inr(b.total), `${b.bills} bill${b.bills === 1 ? "" : "s"}`],
+    ["Paid", inr(b.paid)],
+    ["To pay", inr(b.owed), b.overdue > 0.5 ? `${inr(b.overdue)} overdue` : undefined],
+    [
+      "Rating",
+      b.rating != null ? `★ ${b.rating}` : "—",
+      `${b.reviews} review${b.reviews === 1 ? "" : "s"}`,
+    ],
+  ];
+  return (
+    <section className="grid gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {tiles.map(([k, val, sub]) => (
+          <div
+            key={k}
+            className={cn(
+              "rounded-xl border p-2.5",
+              k === "To pay" && b.overdue > 0.5 && "border-destructive",
+            )}
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {k}
+            </div>
+            <div className="text-lg font-extrabold tabular-nums">{val}</div>
+            {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {b.products} products · {b.units} units received
+        {b.shortUnits ? ` · ${b.shortUnits} short-supplied` : ""}
+        {b.first ? ` · first bill ${b.first}` : ""}
+        {b.last ? ` · last bill ${b.last}` : ""} · terms {v.payment_terms ?? "—"}
+      </p>
+      {vb.length > 0 && (
+        <div className="grid gap-1">
+          <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+            Bills
+          </h4>
+          {vb.slice(0, 12).map((x) => {
+            const m = billMoney(x, payments.data ?? []);
+            return (
+              <Link
+                key={x.id}
+                to="/bills"
+                search={{ sel: x.id }}
+                className="flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
+              >
+                <span className="text-xs text-muted-foreground">
+                  {String(x.bill_date ?? x.created_at).slice(0, 10)}
+                </span>
+                <span className="min-w-0 flex-1 font-medium">{x.bill_no ?? "—"}</span>
+                <span className="tabular-nums">{inr(m.total)}</span>
+                <Pill tone={PAY_TONE[m.status]}>
+                  {PAY_LABEL[m.status]}
+                  {m.balance > 0.5 && m.status !== "reversed" ? ` · ${inr(m.balance)}` : ""}
+                </Pill>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+      <div className="grid gap-1">
+        <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+          Feedback
+          {vr.length
+            ? ` · quality ${avg("quality") ?? "—"} · delivery ${avg("delivery") ?? "—"} · pricing ${avg("pricing") ?? "—"}`
+            : ""}
+        </h4>
+        {vr.length ? (
+          vr.slice(0, 8).map((r) => (
+            <p key={r.id} className="text-xs">
+              <span className="text-muted-foreground">{String(r.created_at).slice(0, 10)}</span>{" "}
+              {[
+                r.quality && `quality ${r.quality}`,
+                r.delivery && `delivery ${r.delivery}`,
+                r.pricing && `pricing ${r.pricing}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              {r.comment ? ` — ${r.comment}` : ""}
+            </p>
+          ))
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No feedback yet — rate a delivery from its bill.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
