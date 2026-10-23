@@ -37,6 +37,39 @@ export const STATES: { code: string; name: string; gst: string }[] = [
   ["WB", "West Bengal", "19"],
 ].map(([code, name, gst]) => ({ code: code!, name: name!, gst: gst! }));
 
+/** Common GST slabs, offered as suggestions — any rate can be typed. */
+export const GST_RATES = [0, 0.25, 3, 5, 12, 18, 28, 40];
+
+export type SupplyType = "igst" | "intra";
+/** Two-digit GST state code of a vendor: from the GSTIN, else its source of supply / state. */
+export function vendorStateCode(v: {
+  gstin?: string | null;
+  source_of_supply?: string | null;
+  state?: string | null;
+} | null | undefined): string | null {
+  if (!v) return null;
+  const g = (v.gstin ?? "").trim();
+  if (/^\d{2}/.test(g)) return g.slice(0, 2);
+  const s = STATES.find(
+    (x) => x.code === v.source_of_supply || x.name === v.state || x.code === v.state,
+  );
+  return s?.gst ?? null;
+}
+/** IGST when the vendor is in another state, CGST + SGST when in the same state; null if unknown. */
+export function supplyTypeFor(
+  vendor: Parameters<typeof vendorStateCode>[0],
+  companyState: string,
+): SupplyType | null {
+  const v = vendorStateCode(vendor);
+  const c = STATES.find((x) => x.code === companyState)?.gst;
+  if (!v || !c) return null;
+  return v === c ? "intra" : "igst";
+}
+export const SUPPLY_LABEL: Record<SupplyType, string> = {
+  igst: "IGST (other state)",
+  intra: "CGST + SGST (same state)",
+};
+
 export const GST_TREATMENTS = [
   ["business_registered_regular", "Registered business – regular"],
   ["business_registered_composition", "Registered business – composition"],

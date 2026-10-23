@@ -37,6 +37,8 @@ export type AppSettings = {
   edge_protection: boolean;
   apparel_gst: { threshold: number; low: number; high: number };
   catalogue_divisions: string[];
+  /** State the business is GST-registered in (STATES code) — decides IGST vs CGST+SGST on bills. */
+  company_state: string;
   logo_url: string | null;
   zoho_templates: Partial<
     Record<
@@ -61,6 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   edge_protection: false,
   apparel_gst: { threshold: 2500, low: 5, high: 18 },
   catalogue_divisions: ["TR"],
+  company_state: "MH",
   logo_url: null,
   zoho_templates: {},
 };

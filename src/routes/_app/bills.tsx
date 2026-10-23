@@ -18,6 +18,7 @@ import {
 import { CHARGE_LABELS, newDraft, newLine } from "@/lib/draft";
 import { chargeAllocation } from "@/lib/receive-plan";
 import { withThumbs } from "@/lib/photos";
+import { GST_RATES, SUPPLY_LABEL, supplyTypeFor, type SupplyType } from "@/lib/gst";
 import {
   Card,
   CardTitle,
@@ -318,7 +319,15 @@ function BillPanel({
                 <Row key={i} k={`${c.label}${c.gst ? ` · GST ${c.gst}%` : ""}`} v={c.amount} />
               ))}
               {!charges.length && <Row k="Other charges" v={chargesTotal} />}
-              <Row k="GST" v={Number(b.gst_total ?? 0)} />
+              {breakupOf(b).length ? (
+                <GstRows breakup={breakupOf(b)} type={b.gst_type === "igst" ? "igst" : "intra"} />
+              ) : (
+                <Row k="GST" v={Number(b.gst_total ?? 0)} />
+              )}
+              {breakupOf(b).length > 0 &&
+                Math.abs(Number(b.gst_total ?? 0) - slabTotal(breakupOf(b))) > 0.5 && (
+                  <Row k="GST as printed on the bill" v={Number(b.gst_total ?? 0)} />
+                )}
               <div className="flex justify-between gap-3 border-t pt-1.5 font-extrabold tabular-nums">
                 <span>Total</span>
                 <span>
@@ -366,6 +375,7 @@ function BillPanel({
                         {l.billed_qty != null ? ` of ${Number(l.billed_qty)} billed` : ""}
                       </span>
                       {l.unit_cost != null && <span>{inr(Number(l.unit_cost))} each</span>}
+                      {l.gst_rate != null && <span>GST {Number(l.gst_rate)}%</span>}
                       {l.extra_cost != null && Number(l.extra_cost) > 0 && (
                         <span>+ {inr(Number(l.extra_cost))} charges</span>
                       )}
@@ -432,6 +442,44 @@ function BillPanel({
   );
 }
 
+type Slab = { rate: number; taxable: number; tax: number };
+const r2 = (x: number) => Math.round(x * 100) / 100;
+function makeBreakup(items: { rate: number; taxable: number }[]): Slab[] {
+  const m = new Map<number, Slab>();
+  for (const it of items) {
+    if (!(it.taxable > 0)) continue;
+    const s = m.get(it.rate) ?? { rate: it.rate, taxable: 0, tax: 0 };
+    s.taxable += it.taxable;
+    s.tax += (it.taxable * it.rate) / 100;
+    m.set(it.rate, s);
+  }
+  return [...m.values()]
+    .map((x) => ({ rate: x.rate, taxable: r2(x.taxable), tax: r2(x.tax) }))
+    .sort((a, b) => a.rate - b.rate);
+}
+const breakupOf = (b: BillWithLines): Slab[] =>
+  Array.isArray(b.gst_breakup) ? (b.gst_breakup as unknown as Slab[]) : [];
+const slabTotal = (xs: Slab[]) => r2(xs.reduce((a, x) => a + Number(x.tax), 0));
+
+/** GST by rate: IGST for another state, or CGST + SGST (half each) for the same state. */
+function GstRows({ breakup, type }: { breakup: Slab[]; type: SupplyType }) {
+  return (
+    <>
+      <div className="text-xs text-muted-foreground">{SUPPLY_LABEL[type]}</div>
+      {breakup.map((x) =>
+        type === "intra" ? (
+          <div key={x.rate} className="grid gap-0.5">
+            <Row k={`CGST ${x.rate / 2}% on ${inr(x.taxable)}`} v={x.tax / 2} />
+            <Row k={`SGST ${x.rate / 2}% on ${inr(x.taxable)}`} v={x.tax / 2} />
+          </div>
+        ) : (
+          <Row key={x.rate} k={`IGST ${x.rate}% on ${inr(x.taxable)}`} v={x.tax} />
+        ),
+      )}
+    </>
+  );
+}
+
 function Row({ k, v }: { k: string; v: number }) {
   return (
     <div className="flex justify-between gap-3 tabular-nums">
@@ -447,6 +495,7 @@ type EditLine = {
   cost: string;
   billed: string;
   received: string;
+  gst: string;
 };
 type EditCharge = { id: string; label: string; amount: string; gst: string };
 
@@ -471,7 +520,17 @@ function BillEditor({
     bill_date: String(b.bill_date ?? "").slice(0, 10),
     bill_total: b.bill_total != null ? String(b.bill_total) : "",
     notes: b.notes ?? "",
-    gst: b.gst_total != null ? String(b.gst_total) : "",
+    // keep the typed GST only if it differed from what the lines added up to
+    gst:
+      b.gst_total != null && Math.abs(Number(b.gst_total) - slabTotal(breakupOf(b))) > 0.5
+        ? String(b.gst_total)
+        : "",
+    gstType: (b.gst_type === "igst" || b.gst_type === "intra"
+      ? b.gst_type
+      : (supplyTypeFor(
+          vendors.data?.find((v) => v.id === b.vendor_id) as never,
+          ref.data?.settings.company_state ?? "MH",
+        ) ?? "intra")) as SupplyType,
   });
   const [charges, setCharges] = useState<EditCharge[]>(
     chargesOf(b).map((c, i) => ({
@@ -488,6 +547,7 @@ function BillEditor({
       cost: l.unit_cost != null ? String(l.unit_cost) : "",
       billed: l.billed_qty != null ? String(l.billed_qty) : String(l.received_qty),
       received: String(l.received_qty),
+      gst: String(l.gst_rate ?? (l.product_id ? (prodById.get(l.product_id)?.gst ?? 18) : 18)),
     })),
   );
   const [busy, setBusy] = useState(false);
@@ -502,15 +562,14 @@ function BillEditor({
   const goods =
     Math.round(lines.reduce((a, l) => a + (num(l.cost) ?? 0) * (num(l.billed) ?? 0), 0) * 100) /
     100;
-  const gstEstimate =
-    Math.round(
-      (lines.reduce((a, l) => {
-        const p = l.productId ? prodById.get(l.productId) : undefined;
-        return a + ((num(l.cost) ?? 0) * (num(l.billed) ?? 0) * Number(p?.gst ?? 18)) / 100;
-      }, 0) +
-        alloc.gst) *
-        100,
-    ) / 100;
+  const breakup = makeBreakup([
+    ...lines.map((l) => ({
+      rate: num(l.gst) ?? 0,
+      taxable: (num(l.cost) ?? 0) * (num(l.billed) ?? 0),
+    })),
+    ...charges.map((c) => ({ rate: num(c.gst) ?? 0, taxable: num(c.amount) ?? 0 })),
+  ]);
+  const gstEstimate = slabTotal(breakup);
   const gst = num(h.gst) ?? gstEstimate;
   const total = Math.round((goods + alloc.net + gst) * 100) / 100;
   const badLine = lines.some(
@@ -541,6 +600,8 @@ function BillEditor({
             goods_value: goods,
             charges_total: alloc.net,
             gst_total: gst,
+            gst_type: h.gstType,
+            gst_breakup: breakup,
             total_cost: total,
           }
         : { vendor_id: h.vendor_id, bill_no: h.bill_no, bill_date: h.bill_date, notes: h.notes };
@@ -550,6 +611,7 @@ function BillEditor({
         billed_qty: num(l.billed),
         received_qty: num(l.received),
         extra_cost: alloc.perUnit ? (alloc.perUnit[l.id] ?? 0) : null,
+        gst_rate: isBill ? num(l.gst) : null,
       }));
       const { data, error } = await supabase.rpc("update_bill", {
         p_receipt: b.id,
@@ -689,7 +751,19 @@ function BillEditor({
               </Button>
             </div>
           ))}
-          <Field label="GST on this bill ₹" hint={`Blank = estimate (${inr(gstEstimate)})`}>
+          <Field label="Tax type">
+            <Select
+              value={h.gstType}
+              onChange={(e) => setH({ ...h, gstType: e.target.value as SupplyType })}
+            >
+              <option value="igst">{SUPPLY_LABEL.igst}</option>
+              <option value="intra">{SUPPLY_LABEL.intra}</option>
+            </Select>
+          </Field>
+          <Field
+            label="GST on this bill ₹"
+            hint={`Blank = from each line's GST % (${inr(gstEstimate)})`}
+          >
             <TextInput
               inputMode="decimal"
               value={h.gst}
@@ -721,7 +795,7 @@ function BillEditor({
                   {p?.friendly_name ?? orig.description}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={cn("grid gap-2", isBill ? "grid-cols-4" : "grid-cols-2")}>
                 {isBill && (
                   <Field label="Unit cost ₹">
                     <TextInput
@@ -745,6 +819,16 @@ function BillEditor({
                     onChange={(e) => upd({ received: e.target.value.replace(/[^\d]/g, "") })}
                   />
                 </Field>
+                {isBill && (
+                  <Field label="GST %">
+                    <TextInput
+                      inputMode="decimal"
+                      list="gst-rates-edit"
+                      value={l.gst}
+                      onChange={(e) => upd({ gst: e.target.value })}
+                    />
+                  </Field>
+                )}
               </div>
               <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
                 {extra != null && <span>charges {inr(extra)} / unit</span>}
@@ -765,7 +849,13 @@ function BillEditor({
         <section className="grid gap-1 rounded-xl border border-primary/30 p-3 text-sm">
           <Row k="Goods (before GST)" v={goods} />
           <Row k="Other charges" v={alloc.net} />
-          <Row k={num(h.gst) != null ? "GST · from the bill" : "GST · estimated"} v={gst} />
+          <GstRows breakup={breakup} type={h.gstType} />
+          {num(h.gst) != null && <Row k="GST as printed on the bill" v={gst} />}
+          <datalist id="gst-rates-edit">
+            {GST_RATES.map((r) => (
+              <option key={r} value={r} />
+            ))}
+          </datalist>
           <div className="flex justify-between border-t pt-1.5 font-extrabold tabular-nums">
             <span>Cost to company</span>
             <span>{inr(total)}</span>

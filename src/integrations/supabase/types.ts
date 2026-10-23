@@ -456,6 +456,7 @@ export type Database = {
       }
       receipt_lines: {
         Row: {
+          gst_rate: number | null
           extra_cost: number | null
           billed_qty: number | null
           created_new: boolean
@@ -470,6 +471,7 @@ export type Database = {
           vendor_item_code: string | null
         }
         Insert: {
+          gst_rate?: number | null
           extra_cost?: number | null
           billed_qty?: number | null
           created_new?: boolean
@@ -484,6 +486,7 @@ export type Database = {
           vendor_item_code?: string | null
         }
         Update: {
+          gst_rate?: number | null
           extra_cost?: number | null
           billed_qty?: number | null
           created_new?: boolean
@@ -516,6 +519,8 @@ export type Database = {
       }
       receipts: {
         Row: {
+          gst_type: string | null
+          gst_breakup: Json | null
           edited_by_email: string | null
           edited_at: string | null
           charges: Json | null
@@ -538,6 +543,8 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          gst_type?: string | null
+          gst_breakup?: Json | null
           edited_by_email?: string | null
           edited_at?: string | null
           charges?: Json | null
@@ -560,6 +567,8 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          gst_type?: string | null
+          gst_breakup?: Json | null
           edited_by_email?: string | null
           edited_at?: string | null
           charges?: Json | null

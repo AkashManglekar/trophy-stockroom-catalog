@@ -287,29 +287,59 @@ export function chargeAllocation(d: Draft): {
   return { net, gst, perUnit };
 }
 
-/** What the bill costs the company: goods + charges + GST (from the bill, or estimated). */
-export function billCosts(d: Draft, plans: Record<string, LinePlan>, ctx: PlanCtx) {
+/** GST rate of a line: what was typed on the bill, else the product's / new item's usual rate. */
+export function lineGstRate(l: DraftLine, P: LinePlan | undefined, ctx: PlanCtx): number {
+  const typed = num(l.gst);
+  if (typed != null) return typed;
+  const known = P?.productId ? ctx.products.find((p) => p.id === P.productId) : undefined;
+  return Number(known?.gst ?? P?.preview?.price.gst ?? 18);
+}
+
+export type GstSlab = { rate: number; taxable: number; tax: number };
+
+/** What the bill costs the company: goods + charges + GST, with GST split by rate and by type
+ *  (IGST for another state, CGST + SGST for the same state). */
+export function billCosts(
+  d: Draft,
+  plans: Record<string, LinePlan>,
+  ctx: PlanCtx,
+  supply: "igst" | "intra" | null = null,
+) {
   const ch = chargeAllocation(d);
+  const slabs = new Map<number, GstSlab>();
+  const add = (rate: number, taxable: number) => {
+    const s = slabs.get(rate) ?? { rate, taxable: 0, tax: 0 };
+    s.taxable += taxable;
+    s.tax += (taxable * rate) / 100;
+    slabs.set(rate, s);
+  };
   let goods = 0;
-  let goodsGst = 0;
   for (const l of d.lines) {
     const v = (num(l.cost) ?? 0) * (num(l.billed) ?? 0);
     goods += v;
-    const P = plans[l.id];
-    const known = P?.productId ? ctx.products.find((p) => p.id === P.productId) : undefined;
-    const rate = known?.gst ?? P?.preview?.price.gst ?? 18;
-    goodsGst += (v * Number(rate)) / 100;
+    if (v > 0) add(lineGstRate(l, plans[l.id], ctx), v);
   }
+  for (const c of d.charges ?? []) {
+    const a = num(c.amount) ?? 0;
+    if (a > 0) add(num(c.gst) ?? 0, a);
+  }
+  const breakup = [...slabs.values()]
+    .map((x) => ({ rate: x.rate, taxable: r2(x.taxable), tax: r2(x.tax) }))
+    .sort((a, b) => a.rate - b.rate);
+  const gstCalculated = r2(breakup.reduce((a, x) => a + x.tax, 0));
   const typed = num(d.billGst);
-  const gstEstimated = r2(goodsGst + ch.gst);
-  const gst = typed != null ? r2(typed) : gstEstimated;
+  const gst = typed != null ? r2(typed) : gstCalculated;
+  const type = d.gstType || supply || "intra";
   goods = r2(goods);
   return {
     goods,
     charges: ch.net,
     gst,
-    gstEstimated,
+    gstEstimated: gstCalculated,
     gstFromBill: typed != null,
+    gstType: type as "igst" | "intra",
+    gstTypeAuto: !d.gstType && !!supply,
+    breakup,
     total: r2(goods + ch.net + gst),
     perUnit: ch.perUnit,
   };

@@ -6,6 +6,8 @@ export type ExtractedLine = {
   description?: string;
   qty?: number;
   unitCost?: number;
+  /** Total GST % on the line as printed (IGST, or CGST + SGST added together). */
+  gstRate?: number;
   div?: string;
   type?: string;
   mat?: string;
@@ -28,9 +30,10 @@ type Input = { text?: string; fileDataUrl?: string; codeLists: string; existing:
 const PROMPT = `You read purchase bills, invoices, quotations and catalogues for an Indian sports-goods store (trophies, medals, apparel, sports infrastructure) and classify each product line into the store's code system.
 
 Return ONLY JSON:
-{"vendorName":"","vendorGstin":"","billNo":"","billDate":"YYYY-MM-DD","lines":[{"vendorItemCode":"","description":"","qty":0,"unitCost":0,"div":"","type":"","mat":"","sport":"","size":"","finish":"","designName":"","match":""}]}
+{"vendorName":"","vendorGstin":"","billNo":"","billDate":"YYYY-MM-DD","lines":[{"vendorItemCode":"","description":"","qty":0,"unitCost":0,"gstRate":0,"div":"","type":"","mat":"","sport":"","size":"","finish":"","designName":"","match":""}]}
 
 Rules:
+- gstRate = the line's total GST % as printed: IGST %, or CGST % + SGST % added together (e.g. CGST 9 + SGST 9 = 18). Omit if not shown.
 - unitCost = price for ONE unit EXCLUDING GST. If only a line amount is printed, divide by qty. If prices include GST, remove it.
 - vendorItemCode = the vendor's own item/model/part code if printed, else "".
 - Skip totals, tax, freight, round-off and discount rows.

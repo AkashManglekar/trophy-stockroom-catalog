@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { MyAccount, TeamManager } from "@/components/TeamManager";
 import { withThumbs } from "@/lib/photos";
 import { cn } from "@/lib/utils";
+import { STATES } from "@/lib/gst";
 import { publicCatalogueUrl } from "@/lib/hosts";
 
 export const Route = createFileRoute("/_app/settings")({
@@ -61,6 +62,7 @@ function SettingsPage() {
         <Notice>Only the owner and editors can change settings. You can view them.</Notice>
       )}
       {isOwner && <TeamManager />}
+      <CompanyGst ref_={ref.data} ro={!canEdit} />
       <PriceRule ref_={ref.data} ro={!canEdit} />
       <DivisionTable ref_={ref.data} ro={!canEdit} />
       <CatalogueSettings ref_={ref.data} ro={!canEdit} />
@@ -69,6 +71,45 @@ function SettingsPage() {
       <DataCard ro={!canEdit} />
       <MyAccount />
     </>
+  );
+}
+
+/** Where the business is GST-registered: decides IGST vs CGST + SGST on vendor bills. */
+function CompanyGst({ ref_, ro }: { ref_: RefData; ro: boolean }) {
+  const inv = useInvalidate();
+  const s = ref_.settings;
+  return (
+    <Card>
+      <CardTitle>Company GST</CardTitle>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[260px_1fr] sm:items-end">
+        <Field label="Your GST state">
+          <Select
+            disabled={ro}
+            value={s.company_state}
+            onChange={async (e) => {
+              try {
+                await saveSettings({ ...s, company_state: e.target.value });
+                await inv("ref");
+                toast.success("Company state saved");
+              } catch (err) {
+                toast.error(errMsg(err));
+              }
+            }}
+          >
+            {STATES.map((x) => (
+              <option key={x.code} value={x.code}>
+                {x.name} ({x.gst})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <p className="text-sm text-muted-foreground">
+          Bills from vendors in this state are CGST + SGST; from any other state, IGST. It's read
+          from the vendor's GSTIN and can be changed on each bill. GST % is entered per line, since
+          rates differ by item.
+        </p>
+      </div>
+    </Card>
   );
 }
 

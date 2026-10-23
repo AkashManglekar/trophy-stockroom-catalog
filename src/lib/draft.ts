@@ -9,6 +9,8 @@ export type DraftLine = {
   received: string;
   cost: string;
   location: string;
+  /** Purchase GST % on this line ("" = product's usual rate). */
+  gst?: string | undefined;
   mode: "new" | "link";
   linkId: string;
   unmap?: boolean;
@@ -44,8 +46,10 @@ export type Draft = {
   billDate: string;
   billTotal: string;
   charges: Charge[];
-  /** GST on the whole bill as printed; blank = estimate from product GST rates. */
+  /** GST on the whole bill as printed; blank = calculated from each line's GST %. */
   billGst: string;
+  /** "" = decide from vendor vs company state. */
+  gstType: "" | "igst" | "intra";
   lines: DraftLine[];
   /** Approver is editing someone's submitted bill before approving it. */
   reviewOf?: string | undefined;
@@ -100,6 +104,7 @@ export const newDraft = (): Draft => ({
   billTotal: "",
   charges: [],
   billGst: "",
+  gstType: "",
   lines: [],
 });
 export const newLine = (o: Partial<DraftLine> = {}): DraftLine => ({

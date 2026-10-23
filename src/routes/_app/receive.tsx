@@ -52,6 +52,7 @@ import {
 import {
   billCosts,
   chargeAllocation,
+  lineGstRate,
   planDraft,
   summarise,
   type LinePlan,
@@ -59,7 +60,7 @@ import {
 } from "@/lib/receive-plan";
 import { normDesc } from "@/lib/naming";
 import { pricePayload } from "@/lib/pricing";
-import { vendorIssues } from "@/lib/gst";
+import { GST_RATES, SUPPLY_LABEL, supplyTypeFor, vendorIssues } from "@/lib/gst";
 import { blobToDataUrl, shrinkImage } from "@/lib/photos";
 import { extractBill, type Extracted } from "@/lib/ai.functions";
 import {
@@ -136,7 +137,14 @@ function ReceivePage() {
     : null;
   const plans = useMemo(() => (ctx ? planDraft(draft, ctx) : {}), [draft, ctx]);
   const sum = summarise(draft, plans);
-  const costs = ctx ? billCosts(draft, plans, ctx) : null;
+  const billVendor =
+    draft.vendorId === "NEW"
+      ? draft.newVendor
+      : (vendors.data ?? []).find((v) => v.id === draft.vendorId);
+  const supply = ref.data
+    ? supplyTypeFor(billVendor as never, ref.data.settings.company_state)
+    : null;
+  const costs = ctx ? billCosts(draft, plans, ctx, supply) : null;
   const prodById = useMemo(
     () => new Map((products.data ?? []).map((p) => [p.id, p])),
     [products.data],
@@ -241,6 +249,7 @@ function ReceivePage() {
           desc: String(x.description).trim(),
           billed: String(x.qty ?? 1),
           cost: x.unitCost != null ? String(x.unitCost) : "",
+          gst: x.gstRate != null && Number.isFinite(Number(x.gstRate)) ? String(x.gstRate) : "",
           ai: true,
           mode: matchP ? "link" : "new",
           linkId: matchP?.id ?? "",
@@ -380,13 +389,14 @@ function ReceivePage() {
           if (error) throw new Error(error.message);
         }
       }
-      const c2 = billCosts({ ...draft, vendorId }, p2, ctx);
+      const c2 = billCosts({ ...draft, vendorId }, p2, ctx, supply);
       const lines = draft.lines.map((l, i) => {
         const P = p2[l.id] as LinePlan;
         const cost = num(l.cost);
         const extra = c2.perUnit ? (c2.perUnit[l.id] ?? 0) : null;
         const base = {
           extra_cost: extra,
+          gst_rate: draft.type === "bill" ? lineGstRate(l, P, ctx) : null,
           line_no: i + 1,
           received_qty: P.received ?? 0,
           billed_qty: num(l.billed),
@@ -445,6 +455,8 @@ function ReceivePage() {
         goods_value: c2.goods,
         charges_total: c2.charges,
         gst_total: draft.type === "bill" ? c2.gst : null,
+        gst_type: draft.type === "bill" ? c2.gstType : null,
+        gst_breakup: draft.type === "bill" ? c2.breakup : null,
         total_cost: draft.type === "bill" ? c2.total : null,
         lines,
       };
@@ -1040,7 +1052,14 @@ function LineCard({
           <Trash2 className="size-4" />
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_2fr_90px_90px_110px]">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-3",
+          isBill
+            ? "sm:grid-cols-[1fr_2fr_80px_80px_100px_76px]"
+            : "sm:grid-cols-[1fr_2fr_90px_90px_110px]",
+        )}
+      >
         <Field label={isBill ? "Vendor code" : "Code"} className="col-span-2 sm:col-span-1">
           <TextInput
             value={l.vitem}
@@ -1070,7 +1089,7 @@ function LineCard({
         ) : (
           <span className="hidden sm:block" />
         )}
-        <Field label="Unit cost ₹" className={isBill ? "col-span-2 sm:col-span-1" : ""}>
+        <Field label="Unit cost ₹">
           <TextInput
             inputMode="decimal"
             value={l.cost}
@@ -1078,6 +1097,17 @@ function LineCard({
             onChange={(e) => updLine(l.id, { cost: e.target.value })}
           />
         </Field>
+        {isBill && (
+          <Field label="GST %">
+            <TextInput
+              inputMode="decimal"
+              list="gst-rates"
+              value={l.gst ?? ""}
+              placeholder={String(lineGstRate(l, P, ctx))}
+              onChange={(e) => updLine(l.id, { gst: e.target.value })}
+            />
+          </Field>
+        )}
       </div>
       {received != null && billed != null && received < billed && (
         <p className="text-sm text-destructive">
@@ -1978,12 +2008,32 @@ function BillCharges({
           )}
         </div>
       )}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_200px] sm:items-end">
-        <p className="text-xs text-muted-foreground">
-          GST is estimated from each item's GST rate plus the charges' GST. Type the bill's GST
-          total if it differs.
-        </p>
-        <Field label="GST on this bill ₹">
+      <datalist id="gst-rates">
+        {GST_RATES.map((r) => (
+          <option key={r} value={r} />
+        ))}
+      </datalist>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:items-start">
+        <Field
+          label="Tax type"
+          hint={
+            costs.gstTypeAuto
+              ? "Set from the vendor's state vs yours (Settings → Company)."
+              : !draft.gstType
+                ? "Vendor's state unknown — pick what the bill shows."
+                : "Chosen for this bill."
+          }
+        >
+          <Select
+            value={draft.gstType ?? ""}
+            onChange={(e) => upd((d) => ({ ...d, gstType: e.target.value as Draft["gstType"] }))}
+          >
+            <option value="">Auto — {SUPPLY_LABEL[costs.gstType]}</option>
+            <option value="igst">{SUPPLY_LABEL.igst}</option>
+            <option value="intra">{SUPPLY_LABEL.intra}</option>
+          </Select>
+        </Field>
+        <Field label="GST on this bill ₹" hint="Blank = worked out from each line's GST %">
           <TextInput
             inputMode="decimal"
             value={draft.billGst ?? ""}
@@ -2001,8 +2051,17 @@ function CostBreakdown({ costs }: { costs: Costs }) {
   const rows: [string, number, string?][] = [
     ["Goods (before GST)", costs.goods],
     ["Other charges (before GST)", costs.charges],
-    ["GST", costs.gst, costs.gstFromBill ? "from the bill" : "estimated"],
   ];
+  const split = costs.gstType === "intra";
+  for (const x of costs.breakup) {
+    if (!x.tax && !x.rate) continue;
+    if (split) {
+      rows.push([`CGST ${x.rate / 2}% on ${inr(x.taxable)}`, x.tax / 2]);
+      rows.push([`SGST ${x.rate / 2}% on ${inr(x.taxable)}`, x.tax / 2]);
+    } else rows.push([`IGST ${x.rate}% on ${inr(x.taxable)}`, x.tax]);
+  }
+  if (costs.gstFromBill && Math.abs(costs.gst - costs.gstEstimated) > 0.5)
+    rows.push(["GST as printed on the bill", costs.gst, `calculated ${inr(costs.gstEstimated)}`]);
   return (
     <div className="grid gap-1.5 rounded-xl border border-primary/30 bg-card p-3 text-sm">
       <strong className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">

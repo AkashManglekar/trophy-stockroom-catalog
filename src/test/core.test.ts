@@ -237,3 +237,15 @@ describe("bill charges", () => {
     ).toBeNull();
   });
 });
+
+import { supplyTypeFor, vendorStateCode } from "@/lib/gst";
+
+describe("GST type per bill", () => {
+  it("reads the vendor state from GSTIN and picks IGST or CGST+SGST", () => {
+    expect(vendorStateCode({ gstin: "24ABCDE1234F1Z5" })).toBe("24");
+    expect(supplyTypeFor({ gstin: "27ABCDE1234F1Z5" }, "MH")).toBe("intra");
+    expect(supplyTypeFor({ gstin: "24ABCDE1234F1Z5" }, "MH")).toBe("igst");
+    expect(supplyTypeFor({ source_of_supply: "KA" }, "MH")).toBe("igst");
+    expect(supplyTypeFor({}, "MH")).toBeNull();
+  });
+});
