@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   LogOut,
   PackagePlus,
+  ReceiptText,
   Settings,
   Store,
   UploadCloud,
@@ -13,9 +14,11 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { LOGO_WHITE } from "@/lib/domain";
 
-export type NavKey = "/receive" | "/products" | "/vendors" | "/export" | "/settings" | "/guide";
+export type NavKey =
+  "/receive" | "/bills" | "/products" | "/vendors" | "/export" | "/settings" | "/guide";
 const NAV: { to: NavKey; label: string; short: string; icon: typeof Store }[] = [
   { to: "/receive", label: "Receive stock", short: "Receive", icon: PackagePlus },
+  { to: "/bills", label: "Bills", short: "Bills", icon: ReceiptText },
   { to: "/products", label: "Products", short: "Products", icon: LayoutGrid },
   { to: "/vendors", label: "Vendors", short: "Vendors", icon: Store },
   { to: "/export", label: "Zoho export", short: "Zoho", icon: UploadCloud },
@@ -96,7 +99,7 @@ export function AppShell({
       </header>
       <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 pb-safe md:pb-12">{children}</main>
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 bg-primary px-1 pt-1.5 text-primary-foreground shadow-[0_-4px_18px_rgba(0,0,0,.18)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 bg-primary px-1 pt-1.5 text-primary-foreground shadow-[0_-4px_18px_rgba(0,0,0,.18)] md:hidden"
         style={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom))" }}
         aria-label="Sections"
       >

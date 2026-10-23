@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -32,6 +32,7 @@ import {
   errMsg,
   priceFor,
   useAdjustments,
+  useBills,
   useFamilies,
   useInvalidate,
   usePhotoMap,
@@ -331,14 +332,15 @@ function ProductsPage() {
                     <span className="grid min-w-0 gap-1 p-3 text-[12.5px]">
                       <Code>{g.code}</Code>
                       <strong className="wrap-any">{g.name}</strong>
-                      {g.sizes.length > 0 && (
-                        <span className="wrap-any text-[11.5px] text-muted-foreground">
-                          {g.sizes.join(" · ")}
-                        </span>
-                      )}
                       <span className="text-muted-foreground">
-                        {priceRange(g.minP, g.maxP)} · stock {g.stock}
+                        {inr(g.items[0]!.p.mrp)}
+                        {g.sizes[0] ? ` · ${g.sizes[0]}` : ""} · stock {g.stock}
                       </span>
+                      {g.items.length > 1 && (
+                        <Pill tone="info" className="w-fit">
+                          {g.items.length} sizes
+                        </Pill>
+                      )}
                       {g.attn.includes("name") && (
                         <Pill tone="warn" className="w-fit">
                           name needed
@@ -387,7 +389,12 @@ function ProductsPage() {
                           {g.name} {g.attn.includes("name") && <Pill tone="warn">name needed</Pill>}
                         </td>
                         <td className="hidden p-2.5 text-xs sm:table-cell">
-                          {g.sizes.join(" · ") || "—"}
+                          {g.sizes[0] || "—"}
+                          {g.items.length > 1 && (
+                            <Pill tone="info" className="ml-1.5">
+                              {g.items.length} sizes
+                            </Pill>
+                          )}
                         </td>
                         <td className="p-2.5 text-right tabular-nums">
                           {g.stock}
@@ -398,7 +405,7 @@ function ProductsPage() {
                           )}
                         </td>
                         <td className="whitespace-nowrap p-2.5 text-right tabular-nums">
-                          {priceRange(g.minP, g.maxP)}
+                          {inr(g.items[0]!.p.mrp)}
                         </td>
                         <td className="hidden p-2.5 md:table-cell">
                           {statuses.map((st) => (
@@ -429,12 +436,54 @@ function ProductsPage() {
   );
 }
 
+/** The bills (and no-bill receipts) this product came in on, newest first, linking to Bills. */
+function ProductBills({ productId }: { productId: string }) {
+  const bills = useBills();
+  const vendors = useVendors();
+  const rows = (bills.data ?? []).flatMap((b) =>
+    b.lines.filter((l) => l.product_id === productId).map((l) => ({ b, l })),
+  );
+  return (
+    <section className="grid gap-2">
+      <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+        Bills · {rows.filter((r) => r.b.receipt_type === "bill").length}
+      </h4>
+      {rows.length ? (
+        <ul className="grid gap-1 text-sm">
+          {rows.map(({ b, l }) => (
+            <li key={l.id}>
+              <Link
+                to="/bills"
+                search={{ sel: b.id }}
+                className={cn(
+                  "flex flex-wrap items-baseline gap-x-2 rounded-lg px-2 py-1 hover:bg-muted",
+                  b.reversed_at && "line-through opacity-60",
+                )}
+              >
+                <span className="text-xs text-muted-foreground">
+                  {String(b.bill_date ?? b.created_at).slice(0, 10)}
+                </span>
+                <span className="wrap-any font-medium">
+                  {b.receipt_type === "bill"
+                    ? `${vendors.data?.find((v) => v.id === b.vendor_id)?.display_name ?? "Vendor"}${b.bill_no ? ` · ${b.bill_no}` : ""}`
+                    : "No bill (new item)"}
+                </span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {l.received_qty} in{l.unit_cost != null ? ` @ ${inr(Number(l.unit_cost))}` : ""}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted-foreground">Not on any bill yet.</p>
+      )}
+    </section>
+  );
+}
+
 type Row = { p: Product; attn: string[] };
 const hasManyFinishes = (items: Row[]) => new Set(items.map((x) => x.p.finish)).size > 1;
-function priceRange(min: number | null, max: number | null) {
-  if (min == null) return "—";
-  return max != null && max > min ? `${inr(min)} – ${inr(max)}` : inr(min);
-}
 
 export function StatusPill({ s }: { s: string }) {
   return (
@@ -894,6 +943,8 @@ function ProductPanel({
           </p>
         )}
       </section>
+
+      <ProductBills productId={p.id} />
 
       <section className="grid gap-2">
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">

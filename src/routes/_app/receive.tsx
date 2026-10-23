@@ -1528,7 +1528,15 @@ function RecentReceipts({
   }
   return (
     <Card>
-      <CardTitle>Recent receipts</CardTitle>
+      <CardTitle
+        right={
+          <Link to="/bills" className="text-xs font-bold uppercase text-primary hover:underline">
+            All bills →
+          </Link>
+        }
+      >
+        Recent receipts
+      </CardTitle>
       <div className="grid gap-2">
         {list.slice(0, 15).map((r) => {
           const units = r.lines.reduce((a, l) => a + l.received_qty, 0);

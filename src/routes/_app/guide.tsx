@@ -194,7 +194,9 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     body: (
       <Ul>
         <li>
-          Whole receipt wrong → Receive stock → Recent receipts → open it → Reverse this receipt.
+          Bill wrong → <b>Bills</b> → open it. The owner can <b>Edit</b> (vendor, bill no., date,
+          charges, GST, each line's cost and quantities), <b>Reverse</b> (takes its stock out, keeps
+          history) or <b>Delete</b> it.
         </li>
         <li>
           Damaged, lost or count differs → Products → open item → Stock → Remove or Set count with a

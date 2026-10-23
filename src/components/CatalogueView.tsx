@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Globe,
@@ -61,7 +62,7 @@ const inr = (n: number) => "₹" + Number(n).toLocaleString("en-IN", { maximumFr
 export function CatalogueView({ data }: { data: CatalogueData }) {
   const [q, setQ] = useState("");
   const [g, setG] = useState("");
-  const [lb, setLb] = useState<{ item: CatalogueItem; i: number } | null>(null);
+  const [lb, setLb] = useState<{ item: CatalogueItem; i: number; size: number } | null>(null);
   const groups = useMemo(() => [...new Set(data.items.map((x) => x.group))], [data.items]);
   const list = data.items.filter(
     (x) =>
@@ -151,7 +152,7 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
         ) : (
           <div className="grid grid-cols-1 gap-3 min-[341px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
             {list.map((it) => (
-              <ItemCard key={it.code} it={it} onOpen={(i) => setLb({ item: it, i })} />
+              <ItemCard key={it.code} it={it} onOpen={(i, size) => setLb({ item: it, i, size })} />
             ))}
           </div>
         )}
@@ -232,14 +233,21 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
           </p>
         </div>
       </footer>
-      {lb && <Lightbox item={lb.item} start={lb.i} onClose={() => setLb(null)} />}
+      {lb && <Lightbox item={lb.item} start={lb.i} size={lb.size} onClose={() => setLb(null)} />}
     </div>
   );
 }
 
-function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => void }) {
+function ItemCard({
+  it,
+  onOpen,
+}: {
+  it: CatalogueItem;
+  onOpen: (i: number, size: number) => void;
+}) {
   const track = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
+  const [size, setSize] = useState(0);
   const step = (d: number) =>
     track.current?.scrollBy({ left: d * track.current.clientWidth, behavior: "smooth" });
   return (
@@ -264,7 +272,7 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
                 decoding="async"
                 width={480}
                 height={480}
-                onClick={() => onOpen(i)}
+                onClick={() => onOpen(i, size)}
                 className="h-full w-full flex-[0_0_100%] cursor-zoom-in snap-center bg-white object-contain"
               />
             ))}
@@ -314,11 +322,11 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
             {it.code}
           </span>
           <span className="whitespace-nowrap text-base font-extrabold tabular-nums sm:text-lg">
-            {priceText(it)}
+            {inr(priceOf(it, size))}
           </span>
         </div>
         <h3 className="wrap-any text-[14.5px] font-bold leading-snug sm:text-base">{it.name}</h3>
-        <Sizes it={it} />
+        <SizePicker it={it} sel={size} onSel={setSize} />
         {it.description && (
           <p className="wrap-any text-[12.5px] text-muted-foreground sm:text-[13.5px]">
             {it.description}
@@ -329,44 +337,89 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
   );
 }
 
-/** "₹1,340" or "₹1,340 – ₹1,720" when sizes are priced differently. */
-function priceText(it: CatalogueItem) {
-  return it.maxPrice > it.price ? `${inr(it.price)} – ${inr(it.maxPrice)}` : inr(it.price);
-}
+const priceOf = (it: CatalogueItem, i: number) => it.variants[i]?.price ?? it.price;
 
-/** Size chips with their prices, e.g. 11in ₹1,340 · 14in ₹1,720. Hidden for items without sizes. */
-function Sizes({ it, dark }: { it: CatalogueItem; dark?: boolean }) {
-  const vs = it.variants.filter((v) => v.label);
-  if (!vs.length) return null;
+/** Shows the chosen size; other sizes stay folded away until the customer opens the picker. */
+function SizePicker({
+  it,
+  sel,
+  onSel,
+  dark,
+}: {
+  it: CatalogueItem;
+  sel: number;
+  onSel: (i: number) => void;
+  dark?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const vs = it.variants;
+  const cur = vs[sel];
+  if (!vs.length || (vs.length === 1 && !cur?.label)) return null;
+  if (vs.length === 1)
+    return (
+      <span className={cn("text-[12.5px]", dark ? "opacity-85" : "text-muted-foreground")}>
+        Size {cur!.label}
+      </span>
+    );
   return (
-    <ul className="flex flex-wrap gap-1.5" aria-label="Sizes and prices">
-      {vs.map((v) => (
-        <li
-          key={v.sku}
-          className={cn(
-            "inline-flex items-baseline gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] tabular-nums",
-            dark ? "border-white/25 text-white" : "bg-card",
-          )}
-        >
-          <span className="font-semibold">{v.label}</span>
-          {vs.length > 1 && (
-            <span className={dark ? "opacity-80" : "text-muted-foreground"}>{inr(v.price)}</span>
-          )}
-        </li>
-      ))}
-    </ul>
+    <div className="grid gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          "inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px]",
+          dark ? "border-white/30 text-white" : "bg-card hover:border-primary",
+        )}
+      >
+        <span className="font-semibold">{cur?.label || "Size"}</span>
+        <span className={dark ? "opacity-75" : "text-muted-foreground"}>· {vs.length} sizes</span>
+        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Choose a size">
+          {vs.map((v, i) => (
+            <button
+              key={v.sku}
+              type="button"
+              role="radio"
+              aria-checked={i === sel}
+              onClick={() => {
+                onSel(i);
+                setOpen(false);
+              }}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-[12px] font-semibold",
+                i === sel
+                  ? dark
+                    ? "border-white bg-white text-[#0B1B3F]"
+                    : "border-primary bg-primary text-primary-foreground"
+                  : dark
+                    ? "border-white/30 text-white"
+                    : "bg-card hover:border-primary",
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 function Lightbox({
   item,
   start,
+  size: size0,
   onClose,
 }: {
   item: CatalogueItem;
   start: number;
+  size: number;
   onClose: () => void;
 }) {
+  const [size, setSize] = useState(size0);
   const track = useRef<HTMLDivElement>(null);
   const [i, setI] = useState(start);
   useEffect(() => {
@@ -461,9 +514,9 @@ function Lightbox({
             <span className="code-tag mr-2 text-xs opacity-80">{item.code}</span>
             {item.name}
           </span>
-          <Sizes it={item} dark />
+          <SizePicker it={item} sel={size} onSel={setSize} dark />
         </span>
-        <span className="whitespace-nowrap text-lg font-extrabold">{priceText(item)}</span>
+        <span className="whitespace-nowrap text-lg font-extrabold">{inr(priceOf(item, size))}</span>
       </div>
     </div>
   );

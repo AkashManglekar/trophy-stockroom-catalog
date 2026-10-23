@@ -516,6 +516,8 @@ export type Database = {
       }
       receipts: {
         Row: {
+          edited_by_email: string | null
+          edited_at: string | null
           charges: Json | null
           goods_value: number | null
           charges_total: number | null
@@ -536,6 +538,8 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          edited_by_email?: string | null
+          edited_at?: string | null
           charges?: Json | null
           goods_value?: number | null
           charges_total?: number | null
@@ -556,6 +560,8 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          edited_by_email?: string | null
+          edited_at?: string | null
           charges?: Json | null
           goods_value?: number | null
           charges_total?: number | null
@@ -871,6 +877,8 @@ export type Database = {
       }
       can_approve: { Args: never; Returns: boolean }
       can_publish: { Args: never; Returns: boolean }
+      delete_bill: { Args: { p_receipt: string }; Returns: string[] }
+      update_bill: { Args: { p_receipt: string; p_header: Json; p_lines: Json }; Returns: string[] }
       size_label: { Args: { p_size: string; p_unit: string }; Returns: string }
       size_tag: { Args: { p_size: string; p_unit: string }; Returns: string }
       clear_samples: { Args: never; Returns: string[] }

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as CatalogueRouteImport } from './routes/catalogue'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppBillsRouteImport } from './routes/_app/bills'
 import { Route as AppExportRouteImport } from './routes/_app/export'
 import { Route as AppGuideRouteImport } from './routes/_app/guide'
 import { Route as AppProductsRouteImport } from './routes/_app/products'
@@ -39,6 +40,11 @@ const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppBillsRoute = AppBillsRouteImport.update({
+  id: '/bills',
+  path: '/bills',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppExportRoute = AppExportRouteImport.update({
   id: '/export',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/catalogue': typeof CatalogueRoute
   '/login': typeof LoginRoute
+  '/bills': typeof AppBillsRoute
   '/export': typeof AppExportRoute
   '/guide': typeof AppGuideRoute
   '/products': typeof AppProductsRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/catalogue': typeof CatalogueRoute
   '/login': typeof LoginRoute
+  '/bills': typeof AppBillsRoute
   '/export': typeof AppExportRoute
   '/guide': typeof AppGuideRoute
   '/products': typeof AppProductsRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/catalogue': typeof CatalogueRoute
   '/login': typeof LoginRoute
+  '/_app/bills': typeof AppBillsRoute
   '/_app/export': typeof AppExportRoute
   '/_app/guide': typeof AppGuideRoute
   '/_app/products': typeof AppProductsRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/catalogue'
     | '/login'
+    | '/bills'
     | '/export'
     | '/guide'
     | '/products'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/'
     | '/catalogue'
     | '/login'
+    | '/bills'
     | '/export'
     | '/guide'
     | '/products'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/catalogue'
     | '/login'
+    | '/_app/bills'
     | '/_app/export'
     | '/_app/guide'
     | '/_app/products'
@@ -191,6 +203,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/bills': {
+      id: '/_app/bills'
+      path: '/bills'
+      fullPath: '/bills'
+      preLoaderRoute: typeof AppBillsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/export': {
       id: '/_app/export'
@@ -245,6 +264,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppBillsRoute: typeof AppBillsRoute
   AppExportRoute: typeof AppExportRoute
   AppGuideRoute: typeof AppGuideRoute
   AppProductsRoute: typeof AppProductsRoute
@@ -254,6 +274,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppBillsRoute: AppBillsRoute,
   AppExportRoute: AppExportRoute,
   AppGuideRoute: AppGuideRoute,
   AppProductsRoute: AppProductsRoute,

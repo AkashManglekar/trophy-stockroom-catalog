@@ -124,6 +124,32 @@ export const useSubmissions = (enabled = true) =>
           .limit(60),
       ),
   });
+/** Every bill / receipt with its lines (newest first) — the bill history. */
+export const useBills = () =>
+  useQuery({
+    queryKey: ["receipts", "all"],
+    staleTime: STALE,
+    queryFn: async () => {
+      const receipts = await all<Receipt>(
+        supabase.from("receipts").select("*").order("created_at", { ascending: false }).limit(2000),
+      );
+      const lines: ReceiptLine[] = [];
+      for (let i = 0; i < receipts.length; i += 200) {
+        const ids = receipts.slice(i, i + 200).map((r) => r.id);
+        if (ids.length)
+          lines.push(
+            ...(await all<ReceiptLine>(
+              supabase.from("receipt_lines").select("*").in("receipt_id", ids).order("line_no"),
+            )),
+          );
+      }
+      const by = new Map<string, ReceiptLine[]>();
+      for (const l of lines) by.set(l.receipt_id, [...(by.get(l.receipt_id) ?? []), l]);
+      return receipts.map((r) => ({ ...r, lines: by.get(r.id) ?? [] }));
+    },
+  });
+export type BillWithLines = Receipt & { lines: ReceiptLine[] };
+
 export const useAdjustments = (productId: string | null) =>
   useQuery({
     queryKey: ["adjustments", productId],
