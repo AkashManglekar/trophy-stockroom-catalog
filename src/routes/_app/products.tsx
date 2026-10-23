@@ -37,13 +37,13 @@ import {
   usePhotoMap,
   useProducts,
   useRefData,
-  useSignedUrls,
+  usePhotoUrls,
   useVendorCodes,
   useVendors,
 } from "@/lib/data";
 import { designNameProblem, sizeLabel } from "@/lib/naming";
 import { pricePayload } from "@/lib/pricing";
-import { removePhoto, setMainPhoto } from "@/lib/photos";
+import { removePhoto, setMainPhoto, withThumbs } from "@/lib/photos";
 import { Card, Code, Empty, Field, PageHead, Pill, Select, TextInput } from "@/components/kit";
 import { PhotoButtons, Thumb } from "@/components/photos";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,7 @@ function ProductsPage() {
     () => rows.map(({ p }) => photoMap.get(p.id)?.[0]?.path ?? "").filter(Boolean),
     [rows, photoMap],
   );
-  const urls = useSignedUrls(mainPaths);
+  const urls = usePhotoUrls(mainPaths);
   const sel = search.sel ? (products.data ?? []).find((p) => p.id === search.sel) : undefined;
   const grid = search.view !== "list";
   const stockValue = rows.reduce((a, { p }) => a + (p.landed ?? 0) * p.stock, 0);
@@ -390,7 +390,10 @@ function ProductPanel({
   const vcodes = useVendorCodes();
   const adj = useAdjustments(p.id);
   const inv = useInvalidate();
-  const urls = useSignedUrls(photos.map((x) => x.path ?? ""));
+  const urls = usePhotoUrls(
+    photos.map((x) => x.path ?? ""),
+    false,
+  );
   const [big, setBig] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [adjQty, setAdjQty] = useState("");
@@ -417,7 +420,7 @@ function ProductPanel({
       toast.error(error.message);
       return;
     }
-    if (data?.length) await supabase.storage.from("media").remove(data);
+    if (data?.length) await supabase.storage.from("media").remove(withThumbs(data));
     toast.success(`${p.code} deleted`);
     onClose();
     inv("products", "photos", "vendor_codes");

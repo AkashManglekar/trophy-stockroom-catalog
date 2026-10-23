@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const roleQ = useQuery({
     queryKey: ["my-role", userId],
     enabled: !!userId,
+    staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")

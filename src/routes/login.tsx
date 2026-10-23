@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { LOGO_BLUE } from "@/lib/domain";
 import { Field, TextInput } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,11 @@ export const Route = createFileRoute("/login")({
     setpw: s["setpw"] ? "1" : undefined,
   }),
   head: () => ({ meta: [{ title: "Sign in · Sportagon Stockroom" }] }),
-  component: Login,
+  component: () => (
+    <AuthProvider>
+      <Login />
+    </AuthProvider>
+  ),
 });
 
 function Login() {

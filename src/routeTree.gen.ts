@@ -19,6 +19,7 @@ import { Route as AppProductsRouteImport } from './routes/_app/products'
 import { Route as AppReceiveRouteImport } from './routes/_app/receive'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
+import { Route as MediaSplatRouteImport } from './routes/media.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -69,6 +70,11 @@ const AppVendorsRoute = AppVendorsRouteImport.update({
   path: '/vendors',
   getParentRoute: () => AppRoute,
 } as any)
+const MediaSplatRoute = MediaSplatRouteImport.update({
+  id: '/media/$',
+  path: '/media/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/receive': typeof AppReceiveRoute
   '/settings': typeof AppSettingsRoute
   '/vendors': typeof AppVendorsRoute
+  '/media/$': typeof MediaSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/receive': typeof AppReceiveRoute
   '/settings': typeof AppSettingsRoute
   '/vendors': typeof AppVendorsRoute
+  '/media/$': typeof MediaSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/_app/receive': typeof AppReceiveRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/vendors': typeof AppVendorsRoute
+  '/media/$': typeof MediaSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/receive'
     | '/settings'
     | '/vendors'
+    | '/media/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/receive'
     | '/settings'
     | '/vendors'
+    | '/media/$'
   id:
     | '__root__'
     | '/'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/_app/receive'
     | '/_app/settings'
     | '/_app/vendors'
+    | '/media/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -147,6 +159,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   CatalogueRoute: typeof CatalogueRoute
   LoginRoute: typeof LoginRoute
+  MediaSplatRoute: typeof MediaSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppVendorsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/media/$': {
+      id: '/media/$'
+      path: '/media/$'
+      fullPath: '/media/$'
+      preLoaderRoute: typeof MediaSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -249,6 +269,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   CatalogueRoute: CatalogueRoute,
   LoginRoute: LoginRoute,
+  MediaSplatRoute: MediaSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

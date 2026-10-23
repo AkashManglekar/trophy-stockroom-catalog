@@ -256,9 +256,12 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
             {it.photos.map((u, i) => (
               <img
                 key={u}
-                src={u}
+                src={`${u}?w=t`}
                 alt={`${it.name} photo ${i + 1}`}
                 loading="lazy"
+                decoding="async"
+                width={480}
+                height={480}
                 onClick={() => onOpen(i)}
                 className="h-full w-full flex-[0_0_100%] cursor-zoom-in snap-center bg-white object-contain"
               />

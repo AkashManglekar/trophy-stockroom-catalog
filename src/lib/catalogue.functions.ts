@@ -7,41 +7,38 @@ export type CatalogueItem = {
   price: number;
   description: string;
   group: string;
+  /** Cached photo addresses (full size). Add `?w=t` for the small copy. */
   photos: string[];
 };
-export type CatalogueData = { items: CatalogueItem[]; logo: string | null; updatedAt: string };
+export type CatalogueData = { items: CatalogueItem[]; updatedAt: string };
 
-/** Public, read-only catalogue. Uses the service role only to call the restricted catalogue function and sign photo URLs. */
+// Warm workers reuse the last answer for a short while so busy moments don't hit the database
+// on every visit. Stockroom changes show up within this window.
+const TTL_MS = 60_000;
+let memo: { at: number; data: CatalogueData } | null = null;
+
+/** Public, read-only catalogue: one database call, no internal fields. */
 export const getCatalogue = createServerFn({ method: "GET" }).handler(
   async (): Promise<CatalogueData> => {
+    if (memo && Date.now() - memo.at < TTL_MS) return memo.data;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [{ data, error }, logoQ] = await Promise.all([
-      supabaseAdmin.rpc("get_catalogue"),
-      supabaseAdmin.rpc("get_catalogue_logo"),
-    ]);
-    if (error) throw new Error("Catalogue is unavailable right now.");
-    const rows = data ?? [];
-    const paths = [
-      ...new Set(rows.flatMap((r) => r.photos ?? []).concat(logoQ.data ? [logoQ.data] : [])),
-    ];
-    const signed: Record<string, string> = {};
-    for (let i = 0; i < paths.length; i += 100) {
-      const { data: s } = await supabaseAdmin.storage
-        .from("media")
-        .createSignedUrls(paths.slice(i, i + 100), 60 * 60 * 12);
-      for (const x of s ?? []) if (x.path && x.signedUrl) signed[x.path] = x.signedUrl;
+    const { data, error } = await supabaseAdmin.rpc("get_catalogue");
+    if (error) {
+      if (memo) return memo.data; // serve the last good copy rather than an error
+      throw new Error("Catalogue is unavailable right now.");
     }
-    return {
-      items: rows.map((r) => ({
+    const out: CatalogueData = {
+      items: (data ?? []).map((r) => ({
         code: r.code,
         name: r.name,
         price: Number(r.price),
         description: stripTax(r.description),
         group: r.type_name,
-        photos: (r.photos ?? []).map((p) => signed[p]).filter((u): u is string => !!u),
+        photos: (r.photos ?? []).filter(Boolean).map((p) => `/media/${p}`),
       })),
-      logo: logoQ.data ? (signed[logoQ.data] ?? null) : null,
       updatedAt: new Date().toISOString(),
     };
+    memo = { at: Date.now(), data: out };
+    return out;
   },
 );

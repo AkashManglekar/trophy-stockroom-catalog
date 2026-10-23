@@ -17,6 +17,7 @@ import {
 } from "./domain";
 import { computePrice, pricePayload } from "./pricing";
 import { designNameProblem } from "./naming";
+import { photoUrl } from "./photos";
 
 const STALE = 30_000;
 
@@ -152,26 +153,13 @@ export function usePhotoMap() {
   }, [q.data]);
 }
 
-/** Short-lived signed URLs for private photos, fetched in one batch. */
-export function useSignedUrls(paths: string[]) {
-  const key = useMemo(() => [...new Set(paths.filter(Boolean))].sort(), [paths]);
-  const q = useQuery({
-    queryKey: ["signed", key],
-    enabled: key.length > 0,
-    staleTime: 50 * 60_000,
-    queryFn: async () => {
-      const out: Record<string, string> = {};
-      for (let i = 0; i < key.length; i += 100) {
-        const { data, error } = await supabase.storage
-          .from("media")
-          .createSignedUrls(key.slice(i, i + 100), 3600);
-        if (error) throw error;
-        for (const d of data ?? []) if (d.path && d.signedUrl) out[d.path] = d.signedUrl;
-      }
-      return out;
-    },
-  });
-  return q.data ?? {};
+/** Stable, cacheable photo addresses (no network round-trip). `thumb` = small copy for grids. */
+export function usePhotoUrls(paths: string[], thumb = true): Record<string, string> {
+  const key = paths.filter(Boolean).join("|");
+  return useMemo(
+    () => Object.fromEntries(key ? key.split("|").map((p) => [p, photoUrl(p, thumb)!]) : []),
+    [key, thumb],
+  );
 }
 
 export function useInvalidate() {

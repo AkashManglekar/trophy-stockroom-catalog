@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import {
   Camera,
   ClipboardPaste,
@@ -32,7 +31,7 @@ import {
   useProducts,
   useReceipts,
   useRefData,
-  useSignedUrls,
+  usePhotoUrls,
   useSubmissions,
   useVendorCodes,
   useVendors,
@@ -139,7 +138,7 @@ function ReceivePage() {
     for (const c of done?.productIds ?? []) ids.add(c);
     return [...ids].map((id) => photoMap.get(id)?.[0]?.path ?? "").filter(Boolean);
   }, [draft.lines, plans, photoMap, done]);
-  const urls = useSignedUrls(thumbPaths);
+  const urls = usePhotoUrls(thumbPaths);
   const thumbOf = (pid: string) => urls[photoMap.get(pid)?.[0]?.path ?? ""];
 
   const dupQ = useQuery({
@@ -308,6 +307,7 @@ function ReceivePage() {
     try {
       const name = file.name.toLowerCase();
       if (/\.(xlsx|xls|csv)$/.test(name)) {
+        const XLSX = await import("xlsx");
         const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0] ?? ""]!, {
           header: 1,
@@ -1364,7 +1364,8 @@ function DoneCard({
     (p) => !ref.data?.types.find((t) => t.div === p.div && t.code === p.type)?.is_service,
   );
   const need = physical.filter((p) => !photoMap.get(p.id)?.length);
-  function labels() {
+  async function labels() {
+    const XLSX = await import("xlsx");
     const rec = new Map(done.created.map((c) => [c.product_id, c.qty]));
     const rows = [
       ["Product code", "Name", "Price", "Labels to print", "Location", "Barcode (Code 128)"],

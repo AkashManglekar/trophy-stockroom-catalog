@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import { Download, FileUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -102,6 +101,7 @@ function ExportSection({ kind, ref_ }: { kind: Kind; ref_: RefData }) {
   async function onSample(file: File | undefined) {
     if (!file) return;
     try {
+      const XLSX = await import("xlsx");
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
       const data = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0] ?? ""]!, {
         header: 1,
@@ -122,6 +122,7 @@ function ExportSection({ kind, ref_ }: { kind: Kind; ref_: RefData }) {
     }
   }
   async function download(fmt: "xlsx" | "csv") {
+    const XLSX = await import("xlsx");
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, K.label);

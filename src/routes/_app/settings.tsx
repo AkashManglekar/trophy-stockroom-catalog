@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import { Download, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -29,6 +28,7 @@ import {
 } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { MyAccount, TeamManager } from "@/components/TeamManager";
+import { withThumbs } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 import { publicCatalogueUrl } from "@/lib/hosts";
 
@@ -673,6 +673,7 @@ function DataCard({ ro }: { ro: boolean }) {
         "adjustments",
         "product_photos",
       ] as const;
+      const XLSX = await import("xlsx");
       const wb = XLSX.utils.book_new();
       for (const t of tables) {
         const { data, error } = await supabase.from(t).select("*");
@@ -698,7 +699,7 @@ function DataCard({ ro }: { ro: boolean }) {
     try {
       const { data: paths, error } = await supabase.rpc("clear_samples");
       if (error) throw error;
-      if (paths?.length) await supabase.storage.from("media").remove(paths);
+      if (paths?.length) await supabase.storage.from("media").remove(withThumbs(paths));
       toast.success("Sample data cleared");
       inv("products", "families", "vendors", "vendor_codes", "photos", "receipts");
     } catch (e) {

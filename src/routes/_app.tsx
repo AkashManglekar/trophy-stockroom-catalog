@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
-import { useAuth } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import {
   attentionReasons,
   useFamilies,
@@ -19,7 +19,11 @@ import { LOGO_BLUE, OWNER_EMAIL } from "@/lib/domain";
 
 export const Route = createFileRoute("/_app")({
   ssr: false,
-  component: AppLayout,
+  component: () => (
+    <AuthProvider>
+      <AppLayout />
+    </AuthProvider>
+  ),
 });
 
 function AppLayout() {

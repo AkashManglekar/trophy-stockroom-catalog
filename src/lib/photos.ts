@@ -2,6 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const MAX_PHOTOS = 6;
 
+/** Storage path of the small copy made at upload. */
+export const thumbPath = (path: string) => path.replace(/\.jpg$/, ".t.jpg");
+/** Paths plus their small copies, for deleting both. */
+export const withThumbs = (paths: string[]) => paths.flatMap((p) => [p, thumbPath(p)]);
+/** Cached, stable photo address. `thumb` serves the small copy (falls back to the full photo). */
+export const photoUrl = (path: string | null | undefined, thumb = true) =>
+  path ? `/media/${path}${thumb ? "?w=t" : ""}` : undefined;
+
 /** Downscales an image to ≤maxSide px JPEG. Falls back to the original file. */
 export async function shrinkImage(file: Blob, maxSide = 1400, quality = 0.84): Promise<Blob> {
   try {
@@ -37,12 +45,16 @@ export async function uploadProductPhotos(
   if (!imgs.length) throw new Error("Choose image files");
   let n = 0;
   for (const f of imgs) {
-    const blob = await shrinkImage(f);
+    const [blob, small] = await Promise.all([shrinkImage(f), shrinkImage(f, 480, 0.78)]);
     const path = `products/${productId}/${crypto.randomUUID()}.jpg`;
     const up = await supabase.storage
       .from("media")
       .upload(path, blob, { contentType: "image/jpeg", upsert: false });
     if (up.error) throw new Error(up.error.message);
+    // Small copy for grids and thumbnails; the full photo is only fetched when opened.
+    await supabase.storage
+      .from("media")
+      .upload(thumbPath(path), small, { contentType: "image/jpeg", upsert: true });
     const ins = await supabase.from("product_photos").insert({
       product_id: productId,
       url: path,
@@ -74,7 +86,7 @@ export async function removePhoto(photo: {
 }) {
   const d = await supabase.from("product_photos").delete().eq("id", photo.id);
   if (d.error) throw new Error(d.error.message);
-  if (photo.path) await supabase.storage.from("media").remove([photo.path]);
+  if (photo.path) await supabase.storage.from("media").remove(withThumbs([photo.path]));
   if (photo.is_main) {
     const { data } = await supabase
       .from("product_photos")
