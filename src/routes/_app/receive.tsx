@@ -24,6 +24,7 @@ import {
   type Submission,
 } from "@/lib/domain";
 import {
+  designCode,
   errMsg,
   priceFor,
   useFamilies,
@@ -36,6 +37,7 @@ import {
   useSubmissions,
   useVendorCodes,
   useVendors,
+  variantLabel,
 } from "@/lib/data";
 import {
   blankVendor,
@@ -44,9 +46,17 @@ import {
   setDraft,
   useDraft,
   type Draft,
+  CHARGE_LABELS,
   type DraftLine,
 } from "@/lib/draft";
-import { planDraft, summarise, type LinePlan, type PlanCtx } from "@/lib/receive-plan";
+import {
+  billCosts,
+  chargeAllocation,
+  planDraft,
+  summarise,
+  type LinePlan,
+  type PlanCtx,
+} from "@/lib/receive-plan";
 import { normDesc } from "@/lib/naming";
 import { pricePayload } from "@/lib/pricing";
 import { vendorIssues } from "@/lib/gst";
@@ -126,6 +136,7 @@ function ReceivePage() {
     : null;
   const plans = useMemo(() => (ctx ? planDraft(draft, ctx) : {}), [draft, ctx]);
   const sum = summarise(draft, plans);
+  const costs = ctx ? billCosts(draft, plans, ctx) : null;
   const prodById = useMemo(
     () => new Map((products.data ?? []).map((p) => [p.id, p])),
     [products.data],
@@ -369,10 +380,13 @@ function ReceivePage() {
           if (error) throw new Error(error.message);
         }
       }
+      const c2 = billCosts({ ...draft, vendorId }, p2, ctx);
       const lines = draft.lines.map((l, i) => {
         const P = p2[l.id] as LinePlan;
         const cost = num(l.cost);
+        const extra = c2.perUnit ? (c2.perUnit[l.id] ?? 0) : null;
         const base = {
+          extra_cost: extra,
           line_no: i + 1,
           received_qty: P.received ?? 0,
           billed_qty: num(l.billed),
@@ -386,7 +400,7 @@ function ReceivePage() {
           const prod = prodById.get(P.productId!)!;
           const pr =
             draft.type === "bill" && cost != null
-              ? priceFor({ ...prod, unit_cost: cost }, ctx.ref)
+              ? priceFor({ ...prod, unit_cost: cost, extra_cost: extra }, ctx.ref)
               : null;
           return {
             ...base,
@@ -422,6 +436,16 @@ function ReceivePage() {
         bill_no: draft.billNo,
         bill_date: draft.billDate,
         bill_total: num(draft.billTotal),
+        charges:
+          draft.type === "bill"
+            ? (draft.charges ?? [])
+                .filter((c) => (num(c.amount) ?? 0) > 0)
+                .map((c) => ({ label: c.label, amount: num(c.amount), gst: num(c.gst) ?? 0 }))
+            : [],
+        goods_value: c2.goods,
+        charges_total: c2.charges,
+        gst_total: draft.type === "bill" ? c2.gst : null,
+        total_cost: draft.type === "bill" ? c2.total : null,
         lines,
       };
       const savedDraft = { ...draft, vendorId, reviewOf: undefined, resubmitOf: undefined };
@@ -491,7 +515,8 @@ function ReceivePage() {
     .filter(([l]) => !onlyAttn || plans[l.id]?.errors.length || plans[l.id]?.kind === "new");
   const diff =
     num(draft.billTotal) != null
-      ? Math.round(((num(draft.billTotal) as number) - sum.value) * 100) / 100
+      ? Math.round(((num(draft.billTotal) as number) - sum.value - (costs?.charges ?? 0)) * 100) /
+        100
       : null;
 
   return (
@@ -607,7 +632,7 @@ function ReceivePage() {
             />
           </Field>
           {draft.type === "bill" ? (
-            <Field label="Bill total before GST ₹">
+            <Field label="Bill total before GST ₹" hint="goods + charges, to cross-check">
               <TextInput
                 inputMode="decimal"
                 placeholder="to cross-check"
@@ -619,6 +644,7 @@ function ReceivePage() {
             <span />
           )}
         </div>
+        {draft.type === "bill" && costs && <BillCharges draft={draft} costs={costs} upd={upd} />}
         {dup && (
           <Notice tone="bad">
             Bill {draft.billNo} from this vendor was already received on{" "}
@@ -828,8 +854,13 @@ function ReceivePage() {
                 <b className="block text-base tabular-nums">{sum.units}</b>units in
               </span>
               <span>
-                <b className="block text-base tabular-nums">{inr(sum.value)}</b>value before GST
+                <b className="block text-base tabular-nums">{inr(sum.value)}</b>goods before GST
               </span>
+              {draft.type === "bill" && costs && (
+                <span>
+                  <b className="block text-base tabular-nums">{inr(costs.total)}</b>cost to company
+                </span>
+              )}
               <span className="hidden sm:inline">
                 <b className="block text-base tabular-nums">{sum.new}</b>new codes
               </span>
@@ -911,6 +942,7 @@ function ReceivePage() {
               , and remember this vendor's codes for next time. Codes are never reused once issued.
             </Notice>
           )}
+          {confirming && ready && draft.type === "bill" && costs && <CostBreakdown costs={costs} />}
         </div>
       )}
 
@@ -950,6 +982,7 @@ function LineCard({
   const { ref } = ctx;
   const c = l.cls;
   const isBill = draft.type === "bill";
+  const extra = chargeAllocation(draft).perUnit?.[l.id] ?? null;
   const border = P.errors.length
     ? "border-l-warning"
     : P.kind === "known"
@@ -1079,12 +1112,17 @@ function LineCard({
             stock {prod.stock} → {prod.stock + (P.received ?? 0)}
           </span>
           {P.matchBy === "code" && <Pill>by product code</Pill>}
+          {isBill && extra != null && num(l.cost) != null && (
+            <Pill tone="info">
+              landed {inr((num(l.cost) ?? 0) + extra)} incl. {inr(extra)} charges
+            </Pill>
+          )}
           {isBill &&
             num(l.cost) != null &&
             prod.unit_cost != null &&
-            num(l.cost) !== prod.unit_cost &&
+            (num(l.cost) !== prod.unit_cost || extra != null) &&
             (() => {
-              const np = priceFor({ ...prod, unit_cost: num(l.cost) }, ref);
+              const np = priceFor({ ...prod, unit_cost: num(l.cost), extra_cost: extra }, ref);
               return (
                 <Pill tone="warn">
                   cost {inr(prod.unit_cost)} → {inr(num(l.cost))} · price {inr(prod.mrp)} →{" "}
@@ -1323,11 +1361,14 @@ function LineCard({
                 </div>
               ) : P.preview ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg bg-accent/10 p-2.5">
-                  <Pill tone="brand">Will create</Pill>
-                  <Code>{P.preview.code}</Code>
+                  <Pill tone="brand">{P.preview.newSize ? "New size of" : "Will create"}</Pill>
+                  <Code>{P.preview.base}</Code>
+                  <span className="text-xs text-muted-foreground">SKU {P.preview.code}</span>
                   <strong className="wrap-any text-sm">{P.preview.friendly}</strong>
                   <span className="text-xs text-muted-foreground">
-                    price {inr(P.preview.price.mrp)} · {P.preview.price.rule}
+                    landed {inr(P.preview.price.landed)}
+                    {extra != null ? ` incl. ${inr(extra)} charges` : ""} · price{" "}
+                    {inr(P.preview.price.mrp)} · {P.preview.price.rule}
                   </span>
                 </div>
               ) : null}
@@ -1358,6 +1399,7 @@ function DoneCard({
   onClose: () => void;
 }) {
   const ref = useRefData();
+  const fams = useFamilies();
   const items = done.productIds.map((id) => prodById.get(id)).filter(Boolean) as Product[];
   const physical = items.filter(
     (p) => !ref.data?.types.find((t) => t.div === p.div && t.code === p.type)?.is_service,
@@ -1367,11 +1409,20 @@ function DoneCard({
     const XLSX = await import("xlsx");
     const rec = new Map(done.created.map((c) => [c.product_id, c.qty]));
     const rows = [
-      ["Product code", "Name", "Price", "Labels to print", "Location", "Barcode (Code 128)"],
+      [
+        "Product code",
+        "Size",
+        "Name",
+        "Price",
+        "Labels to print",
+        "Location",
+        "SKU (barcode, Code 128)",
+      ],
     ];
     for (const p of physical)
       rows.push([
-        p.code,
+        designCode(p, fams.data ?? []),
+        variantLabel(p, ref.data),
         p.friendly_name,
         String(p.mrp ?? ""),
         String(rec.get(p.id) ?? ""),
@@ -1379,7 +1430,15 @@ function DoneCard({
         p.code,
       ]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"] = [{ wch: 12 }, { wch: 40 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 18 }];
+    ws["!cols"] = [
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 40 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 20 },
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Labels");
     XLSX.writeFile(wb, `Labels_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -1394,6 +1453,9 @@ function DoneCard({
         {done.created.length} new code{done.created.length === 1 ? "" : "s"}
         {done.created.length ? ": " : ""}
         {done.created.map((c) => c.code).join(", ")}
+        <span className="block text-xs text-muted-foreground">
+          Tag each piece with its product code and size — one code covers every size of a design.
+        </span>
       </p>
       <p className="text-sm text-muted-foreground">
         Next: photograph new products, tag the stock with its code and price, shelve it, then export
@@ -1814,4 +1876,147 @@ function SubmissionPill({ s }: { s: string }) {
   };
   const [tone, text] = map[s] ?? ["mute", s];
   return <Pill tone={tone}>{text}</Pill>;
+}
+
+type Costs = ReturnType<typeof billCosts>;
+
+/** Shipping, packaging and other bill charges. They are spread over the lines by value and become
+ *  part of each unit's landed cost. */
+function BillCharges({
+  draft,
+  costs,
+  upd,
+}: {
+  draft: Draft;
+  costs: Costs;
+  upd: (fn: (d: Draft) => Draft) => void;
+}) {
+  const charges = draft.charges ?? [];
+  const set = (id: string, patch: Partial<Draft["charges"][number]>) =>
+    upd((d) => ({
+      ...d,
+      charges: (d.charges ?? []).map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    }));
+  const add = () =>
+    upd((d) => ({
+      ...d,
+      charges: [
+        ...(d.charges ?? []),
+        {
+          id: Math.random().toString(36).slice(2, 10),
+          label: (d.charges ?? []).length ? "Packaging" : "Shipping / freight",
+          amount: "",
+          gst: "18",
+        },
+      ],
+    }));
+  return (
+    <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-bold">Other charges on this bill</span>
+        <Button size="sm" variant="outline" className="rounded-full" onClick={add}>
+          <Plus className="size-4" /> Add charge
+        </Button>
+      </div>
+      {charges.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Shipping, packaging, loading or other costs on the bill. Add them and they're spread
+          across the items by value, so each item's landed cost is what it really cost you. Without
+          charges, the division's estimated freight and packaging are used.
+        </p>
+      ) : (
+        <div className="grid gap-2">
+          {charges.map((c) => (
+            <div key={c.id} className="grid grid-cols-[1fr_110px_76px_auto] items-end gap-2">
+              <Field label="Charge">
+                <Select value={c.label} onChange={(e) => set(c.id, { label: e.target.value })}>
+                  {CHARGE_LABELS.map((x) => (
+                    <option key={x}>{x}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="₹ before GST">
+                <TextInput
+                  inputMode="decimal"
+                  value={c.amount}
+                  placeholder="0"
+                  onChange={(e) => set(c.id, { amount: e.target.value })}
+                />
+              </Field>
+              <Field label="GST %">
+                <TextInput
+                  inputMode="decimal"
+                  value={c.gst}
+                  onChange={(e) => set(c.id, { gst: e.target.value })}
+                />
+              </Field>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="mb-0.5 rounded-full"
+                title="Remove charge"
+                onClick={() =>
+                  upd((d) => ({ ...d, charges: (d.charges ?? []).filter((x) => x.id !== c.id) }))
+                }
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          ))}
+          {costs.charges > 0 && !costs.perUnit && (
+            <p className="text-xs text-warning-foreground dark:text-warning">
+              Add item costs and quantities to spread these charges.
+            </p>
+          )}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_200px] sm:items-end">
+        <p className="text-xs text-muted-foreground">
+          GST is estimated from each item's GST rate plus the charges' GST. Type the bill's GST
+          total if it differs.
+        </p>
+        <Field label="GST on this bill ₹">
+          <TextInput
+            inputMode="decimal"
+            value={draft.billGst ?? ""}
+            placeholder={`≈ ${inr(costs.gstEstimated)}`}
+            onChange={(e) => upd((d) => ({ ...d, billGst: e.target.value }))}
+          />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/** Final cost to the company for this bill, shown before confirming. */
+function CostBreakdown({ costs }: { costs: Costs }) {
+  const rows: [string, number, string?][] = [
+    ["Goods (before GST)", costs.goods],
+    ["Other charges (before GST)", costs.charges],
+    ["GST", costs.gst, costs.gstFromBill ? "from the bill" : "estimated"],
+  ];
+  return (
+    <div className="grid gap-1.5 rounded-xl border border-primary/30 bg-card p-3 text-sm">
+      <strong className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+        Cost to company
+      </strong>
+      {rows.map(([k, v, note]) => (
+        <div key={k} className="flex justify-between gap-3 tabular-nums">
+          <span>
+            {k}
+            {note ? <span className="text-xs text-muted-foreground"> · {note}</span> : null}
+          </span>
+          <span>{inr(v)}</span>
+        </div>
+      ))}
+      <div className="flex justify-between gap-3 border-t pt-1.5 text-base font-extrabold tabular-nums">
+        <span>Total</span>
+        <span>{inr(costs.total)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Item landed cost includes its share of the charges; prices are set on cost before GST (GST
+        you pay is claimable as input credit).
+      </p>
+    </div>
+  );
 }

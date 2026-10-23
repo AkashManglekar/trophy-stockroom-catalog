@@ -38,6 +38,7 @@ import {
   useProducts,
   useRefData,
   usePhotoUrls,
+  variantLabel,
   useVendorCodes,
   useVendors,
 } from "@/lib/data";
@@ -107,6 +108,7 @@ function ProductsPage() {
           !q ||
           [
             p.code,
+            families.data?.find((f) => f.id === p.family_id)?.code,
             p.friendly_name,
             p.spec_code,
             p.description,
@@ -128,12 +130,53 @@ function ProductsPage() {
     search.status,
   ]);
 
-  const mainPaths = useMemo(
-    () => rows.map(({ p }) => photoMap.get(p.id)?.[0]?.path ?? "").filter(Boolean),
-    [rows, photoMap],
-  );
+  // One listing per design: sizes (and finishes) of the same design share its product code.
+  const groups = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    for (const r of rows) {
+      const k = r.p.family_id ?? r.p.id;
+      const g = m.get(k) ?? [];
+      g.push(r);
+      m.set(k, g);
+    }
+    return [...m.entries()]
+      .map(([k, items]) => {
+        items.sort(
+          (a, b) => a.p.size.localeCompare(b.p.size) || a.p.finish.localeCompare(b.p.finish),
+        );
+        const fam = families.data?.find((f) => f.id === k);
+        const prices = items.map((x) => x.p.mrp).filter((n): n is number => n != null);
+        const withPhoto = items.find((x) => photoMap.get(x.p.id)?.length);
+        return {
+          key: k,
+          items,
+          code: fam?.code ?? items[0]!.p.code,
+          name: fam?.design_name || items[0]!.p.friendly_name,
+          minP: prices.length ? Math.min(...prices) : null,
+          maxP: prices.length ? Math.max(...prices) : null,
+          stock: items.reduce((a, x) => a + x.p.stock, 0),
+          photo: withPhoto ? (photoMap.get(withPhoto.p.id)?.[0]?.path ?? "") : "",
+          attn: [...new Set(items.flatMap((x) => x.attn))],
+          sizes: items
+            .map((x) => variantLabel(x.p, ref.data, hasManyFinishes(items)))
+            .filter(Boolean),
+          sample: items.some((x) => x.p.is_sample),
+        };
+      })
+      .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  }, [rows, families.data, photoMap, ref.data]);
+  const mainPaths = useMemo(() => groups.map((g) => g.photo).filter(Boolean), [groups]);
   const urls = usePhotoUrls(mainPaths);
   const sel = search.sel ? (products.data ?? []).find((p) => p.id === search.sel) : undefined;
+  const siblings = sel
+    ? (products.data ?? [])
+        .filter(
+          (x) => x.family_id === sel.family_id && (x.status !== "Archived" || x.id === sel.id),
+        )
+        .sort((a, b) => a.size.localeCompare(b.size) || a.finish.localeCompare(b.finish))
+    : [];
+  const open = (g: (typeof groups)[number]) =>
+    set({ sel: g.items.find((x) => x.p.id === sel?.id)?.p.id ?? g.items[0]!.p.id });
   const grid = search.view !== "list";
   const stockValue = rows.reduce((a, { p }) => a + (p.landed ?? 0) * p.stock, 0);
   const low = rows.filter(({ attn }) => attn.includes("low stock")).length;
@@ -145,7 +188,7 @@ function ProductsPage() {
     <>
       <PageHead
         title="Products"
-        lede="Your master list. Open a product to see everything behind its code."
+        lede="Your master list — one listing per design, with its sizes inside. Open a product to see everything behind its code."
         right={
           <div className="flex flex-wrap gap-2">
             {canPublish && (
@@ -207,7 +250,9 @@ function ProductsPage() {
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
-          <Pill>{rows.length} products</Pill>
+          <Pill>
+            {groups.length} products · {rows.length} sizes
+          </Pill>
           <Pill>stock value {inr(Math.round(stockValue))}</Pill>
           {low ? <Pill tone="warn">{low} at or below reorder</Pill> : null}
           {noPhoto ? <Pill>{noPhoto} without photos</Pill> : null}
@@ -259,15 +304,16 @@ function ProductsPage() {
             </Empty>
           ) : grid ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {rows.map(({ p, attn }) => {
-                const url = urls[photoMap.get(p.id)?.[0]?.path ?? ""];
+              {groups.map((g) => {
+                const url = urls[g.photo];
+                const on = g.items.some((x) => x.p.id === sel?.id);
                 return (
                   <button
-                    key={p.id}
-                    onClick={() => set({ sel: p.id })}
+                    key={g.key}
+                    onClick={() => open(g)}
                     className={cn(
                       "card-lift grid min-w-0 overflow-hidden text-left",
-                      sel?.id === p.id && "ring-2 ring-accent",
+                      on && "ring-2 ring-accent",
                     )}
                   >
                     {url ? (
@@ -279,21 +325,26 @@ function ProductsPage() {
                       />
                     ) : (
                       <span className="grid aspect-square place-items-center bg-muted text-xs text-muted-foreground">
-                        <span className="code-tag">{p.code}</span>no photo
+                        <span className="code-tag">{g.code}</span>no photo
                       </span>
                     )}
-                    <span className="grid min-w-0 gap-0.5 p-3 text-[12.5px]">
-                      <Code>{p.code}</Code>
-                      <strong className="wrap-any">{p.friendly_name}</strong>
+                    <span className="grid min-w-0 gap-1 p-3 text-[12.5px]">
+                      <Code>{g.code}</Code>
+                      <strong className="wrap-any">{g.name}</strong>
+                      {g.sizes.length > 0 && (
+                        <span className="wrap-any text-[11.5px] text-muted-foreground">
+                          {g.sizes.join(" · ")}
+                        </span>
+                      )}
                       <span className="text-muted-foreground">
-                        {inr(p.mrp)} · stock {p.stock}
+                        {priceRange(g.minP, g.maxP)} · stock {g.stock}
                       </span>
-                      {attn.includes("name") && (
+                      {g.attn.includes("name") && (
                         <Pill tone="warn" className="w-fit">
                           name needed
                         </Pill>
                       )}
-                      {p.is_sample && <Pill className="w-fit">sample</Pill>}
+                      {g.sample && <Pill className="w-fit">sample</Pill>}
                     </span>
                   </button>
                 );
@@ -307,53 +358,56 @@ function ProductsPage() {
                     <th className="p-2.5" />
                     <th className="p-2.5">Code</th>
                     <th className="p-2.5">Name</th>
+                    <th className="hidden p-2.5 sm:table-cell">Sizes</th>
                     <th className="p-2.5 text-right">Stock</th>
                     <th className="p-2.5 text-right">Price</th>
-                    <th className="hidden p-2.5 text-right sm:table-cell">Sell ex-GST</th>
-                    <th className="hidden p-2.5 text-right md:table-cell">Landed</th>
                     <th className="hidden p-2.5 md:table-cell">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ p, attn }) => (
-                    <tr
-                      key={p.id}
-                      onClick={() => set({ sel: p.id })}
-                      className={cn(
-                        "cursor-pointer border-t hover:bg-muted/60",
-                        sel?.id === p.id && "bg-accent/10",
-                      )}
-                    >
-                      <td className="p-2">
-                        <Thumb url={urls[photoMap.get(p.id)?.[0]?.path ?? ""]} label={p.code} />
-                      </td>
-                      <td className="p-2.5">
-                        <Code>{p.code}</Code>
-                      </td>
-                      <td className="p-2.5">
-                        {p.friendly_name}{" "}
-                        {attn.includes("name") && <Pill tone="warn">name needed</Pill>}
-                      </td>
-                      <td className="p-2.5 text-right tabular-nums">
-                        {p.stock}
-                        {attn.includes("low stock") && (
-                          <Pill tone="warn" className="ml-1">
-                            low
-                          </Pill>
+                  {groups.map((g) => {
+                    const on = g.items.some((x) => x.p.id === sel?.id);
+                    const statuses = [...new Set(g.items.map((x) => x.p.status))];
+                    return (
+                      <tr
+                        key={g.key}
+                        onClick={() => open(g)}
+                        className={cn(
+                          "cursor-pointer border-t hover:bg-muted/60",
+                          on && "bg-accent/10",
                         )}
-                      </td>
-                      <td className="p-2.5 text-right tabular-nums">{inr(p.mrp)}</td>
-                      <td className="hidden p-2.5 text-right tabular-nums sm:table-cell">
-                        {inr(p.selling)}
-                      </td>
-                      <td className="hidden p-2.5 text-right tabular-nums md:table-cell">
-                        {inr(p.landed)}
-                      </td>
-                      <td className="hidden p-2.5 md:table-cell">
-                        <StatusPill s={p.status} />
-                      </td>
-                    </tr>
-                  ))}
+                      >
+                        <td className="p-2">
+                          <Thumb url={urls[g.photo]} label={g.code} />
+                        </td>
+                        <td className="p-2.5">
+                          <Code>{g.code}</Code>
+                        </td>
+                        <td className="p-2.5">
+                          {g.name} {g.attn.includes("name") && <Pill tone="warn">name needed</Pill>}
+                        </td>
+                        <td className="hidden p-2.5 text-xs sm:table-cell">
+                          {g.sizes.join(" · ") || "—"}
+                        </td>
+                        <td className="p-2.5 text-right tabular-nums">
+                          {g.stock}
+                          {g.attn.includes("low stock") && (
+                            <Pill tone="warn" className="ml-1">
+                              low
+                            </Pill>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap p-2.5 text-right tabular-nums">
+                          {priceRange(g.minP, g.maxP)}
+                        </td>
+                        <td className="hidden p-2.5 md:table-cell">
+                          {statuses.map((st) => (
+                            <StatusPill key={st} s={st} />
+                          ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -363,6 +417,8 @@ function ProductsPage() {
           <ProductPanel
             key={sel.id}
             p={sel}
+            siblings={siblings}
+            onPick={(id) => set({ sel: id })}
             ref_={ref.data}
             photos={photoMap.get(sel.id) ?? []}
             onClose={() => set({ sel: undefined })}
@@ -371,6 +427,13 @@ function ProductsPage() {
       </div>
     </>
   );
+}
+
+type Row = { p: Product; attn: string[] };
+const hasManyFinishes = (items: Row[]) => new Set(items.map((x) => x.p.finish)).size > 1;
+function priceRange(min: number | null, max: number | null) {
+  if (min == null) return "—";
+  return max != null && max > min ? `${inr(min)} – ${inr(max)}` : inr(min);
 }
 
 export function StatusPill({ s }: { s: string }) {
@@ -393,11 +456,15 @@ export function StatusPill({ s }: { s: string }) {
 
 function ProductPanel({
   p,
+  siblings,
+  onPick,
   ref_,
   photos,
   onClose,
 }: {
   p: Product;
+  siblings: Product[];
+  onPick: (id: string) => void;
   ref_: RefData;
   photos: Photo[];
   onClose: () => void;
@@ -415,6 +482,7 @@ function ProductPanel({
   const [big, setBig] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const fam = families.data?.find((f) => f.id === p.family_id);
+  const manyFinishes = new Set(siblings.map((x) => x.finish)).size > 1;
   const t = ref_.types.find((x) => x.div === p.div && x.code === p.type);
   const d = ref_.divisions.find((x) => x.code === p.div);
   const live = priceFor(p, ref_);
@@ -505,8 +573,12 @@ function ProductPanel({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <Code big>{p.code}</Code>
-          <h3 className="wrap-any mt-1 text-lg font-bold">{p.friendly_name}</h3>
+          <Code big>{fam?.code ?? p.code}</Code>
+          <h3 className="wrap-any mt-1 text-lg font-bold">{fam?.design_name || p.friendly_name}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            This size: <span className="font-mono">{p.code}</span>
+            {variantLabel(p, ref_, manyFinishes) ? ` · ${variantLabel(p, ref_, manyFinishes)}` : ""}
+          </p>
         </div>
         <div className="flex shrink-0 gap-1">
           <Button
@@ -535,6 +607,34 @@ function ProductPanel({
           </Button>
         </div>
       </div>
+      {siblings.length > 1 && (
+        <div className="grid gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Sizes · {siblings.length}
+          </span>
+          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Sizes">
+            {siblings.map((x) => (
+              <button
+                key={x.id}
+                role="tab"
+                aria-selected={x.id === p.id}
+                onClick={() => onPick(x.id)}
+                className={cn(
+                  "grid rounded-xl border px-3 py-1.5 text-left text-xs tabular-nums",
+                  x.id === p.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-card hover:border-primary",
+                )}
+              >
+                <b className="text-[13px]">{variantLabel(x, ref_, manyFinishes) || x.code}</b>
+                <span className={x.id === p.id ? "opacity-85" : "text-muted-foreground"}>
+                  {inr(x.mrp)} · {x.stock} in stock
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {p.status === "Archived" && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2.5 text-sm">
           <span>Archived — hidden from the product list and the public catalogue.</span>
@@ -663,6 +763,14 @@ function ProductPanel({
         <dl className="grid grid-cols-[minmax(110px,max-content)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm tabular-nums">
           <dt className="text-muted-foreground">Unit cost</dt>
           <dd>{inr(p.unit_cost)}</dd>
+          <dt className="text-muted-foreground">Bill charges</dt>
+          <dd>
+            {p.extra_cost != null ? (
+              `${inr(p.extra_cost)} / unit (last bill)`
+            ) : (
+              <span className="text-muted-foreground">estimated freight + packaging</span>
+            )}
+          </dd>
           <dt className="text-muted-foreground">Landed</dt>
           <dd>{inr(live?.landed)}</dd>
           <dt className="text-muted-foreground">Price rule</dt>

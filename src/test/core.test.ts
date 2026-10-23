@@ -197,3 +197,43 @@ describe("vendors", () => {
     ]);
   });
 });
+
+import { sizeTag, variantSku } from "@/lib/naming";
+import { chargeAllocation } from "@/lib/receive-plan";
+import { newDraft, newLine } from "@/lib/draft";
+
+describe("one code per design", () => {
+  const sizes = [{ code: "LRG", name: "L" }] as never;
+  it("builds variant SKUs from the design code", () => {
+    expect(sizeTag("011", "in", sizes)).toBe("11");
+    expect(sizeTag("LRG", "size", sizes)).toBe("L");
+    expect(sizeTag("000", "none", sizes)).toBe("");
+    expect(variantSku("TC-1005", "014", "in", "GD", sizes, new Set())).toBe("TC-1005-14");
+    expect(variantSku("TC-1005", "014", "in", "SL", sizes, new Set(["TC-1005-14"]))).toBe(
+      "TC-1005-14-SL",
+    );
+    expect(variantSku("TS-1001", "000", "none", "NA", sizes, new Set())).toBe("TS-1001");
+  });
+});
+
+describe("bill charges", () => {
+  it("spreads charges over lines by value, per billed unit", () => {
+    const d = {
+      ...newDraft(),
+      charges: [{ id: "a", label: "Shipping / freight", amount: "300", gst: "18" }],
+      lines: [
+        newLine({ id: "x", cost: "100", billed: "10" }), // value 1000
+        newLine({ id: "y", cost: "500", billed: "4" }), // value 2000
+      ],
+    };
+    const a = chargeAllocation(d);
+    expect(a.net).toBe(300);
+    expect(a.gst).toBe(54);
+    expect(a.perUnit).toEqual({ x: 10, y: 50 }); // 100 over 10 units, 200 over 4 units
+  });
+  it("uses estimates when the bill has no charges", () => {
+    expect(
+      chargeAllocation({ ...newDraft(), lines: [newLine({ cost: "1", billed: "1" })] }).perUnit,
+    ).toBeNull();
+  });
+});

@@ -1,10 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { stripTax } from "@/lib/naming";
 
+export type CatalogueVariant = { label: string; price: number; sku: string };
 export type CatalogueItem = {
+  /** Design code, shared by all sizes. */
   code: string;
   name: string;
+  /** Lowest price across sizes. */
   price: number;
+  maxPrice: number;
+  /** Sizes (and finishes) with their prices, smallest first. */
+  variants: CatalogueVariant[];
   description: string;
   group: string;
   /** Cached photo addresses (full size). Add `?w=t` for the small copy. */
@@ -28,14 +34,24 @@ export const getCatalogue = createServerFn({ method: "GET" }).handler(
       throw new Error("Catalogue is unavailable right now.");
     }
     const out: CatalogueData = {
-      items: (data ?? []).map((r) => ({
-        code: r.code,
-        name: r.name,
-        price: Number(r.price),
-        description: stripTax(r.description),
-        group: r.type_name,
-        photos: (r.photos ?? []).filter(Boolean).map((p) => `/media/${p}`),
-      })),
+      items: (data ?? []).map((r) => {
+        const variants = ((r.variants as CatalogueVariant[] | null) ?? []).map((v) => ({
+          label: String(v.label ?? ""),
+          price: Number(v.price),
+          sku: String(v.sku ?? ""),
+        }));
+        const prices = variants.map((v) => v.price).filter((n) => Number.isFinite(n));
+        return {
+          code: r.code,
+          name: r.name,
+          price: prices.length ? Math.min(...prices) : Number(r.price),
+          maxPrice: prices.length ? Math.max(...prices) : Number(r.price),
+          variants,
+          description: stripTax(r.description),
+          group: r.type_name,
+          photos: (r.photos ?? []).filter(Boolean).map((p) => `/media/${p}`),
+        };
+      }),
       updatedAt: new Date().toISOString(),
     };
     memo = { at: Date.now(), data: out };

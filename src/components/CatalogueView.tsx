@@ -67,7 +67,9 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
     (x) =>
       (!g || x.group === g) &&
       (!q.trim() ||
-        `${x.code} ${x.name} ${x.description}`.toLowerCase().includes(q.trim().toLowerCase())),
+        `${x.code} ${x.name} ${x.description} ${x.variants.map((v) => `${v.sku} ${v.label}`).join(" ")}`
+          .toLowerCase()
+          .includes(q.trim().toLowerCase())),
   );
   return (
     <div className="min-h-dvh bg-background">
@@ -312,10 +314,11 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
             {it.code}
           </span>
           <span className="whitespace-nowrap text-base font-extrabold tabular-nums sm:text-lg">
-            {inr(it.price)}
+            {priceText(it)}
           </span>
         </div>
         <h3 className="wrap-any text-[14.5px] font-bold leading-snug sm:text-base">{it.name}</h3>
+        <Sizes it={it} />
         {it.description && (
           <p className="wrap-any text-[12.5px] text-muted-foreground sm:text-[13.5px]">
             {it.description}
@@ -323,6 +326,35 @@ function ItemCard({ it, onOpen }: { it: CatalogueItem; onOpen: (i: number) => vo
         )}
       </div>
     </article>
+  );
+}
+
+/** "₹1,340" or "₹1,340 – ₹1,720" when sizes are priced differently. */
+function priceText(it: CatalogueItem) {
+  return it.maxPrice > it.price ? `${inr(it.price)} – ${inr(it.maxPrice)}` : inr(it.price);
+}
+
+/** Size chips with their prices, e.g. 11in ₹1,340 · 14in ₹1,720. Hidden for items without sizes. */
+function Sizes({ it, dark }: { it: CatalogueItem; dark?: boolean }) {
+  const vs = it.variants.filter((v) => v.label);
+  if (!vs.length) return null;
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label="Sizes and prices">
+      {vs.map((v) => (
+        <li
+          key={v.sku}
+          className={cn(
+            "inline-flex items-baseline gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] tabular-nums",
+            dark ? "border-white/25 text-white" : "bg-card",
+          )}
+        >
+          <span className="font-semibold">{v.label}</span>
+          {vs.length > 1 && (
+            <span className={dark ? "opacity-80" : "text-muted-foreground"}>{inr(v.price)}</span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -424,8 +456,14 @@ function Lightbox({
         className="flex items-center justify-between gap-3 px-4 py-3"
         style={{ paddingBottom: "max(.875rem, env(safe-area-inset-bottom))" }}
       >
-        <span className="wrap-any min-w-0 font-bold">{item.name}</span>
-        <span className="whitespace-nowrap text-lg font-extrabold">{inr(item.price)}</span>
+        <span className="grid min-w-0 gap-1.5">
+          <span className="wrap-any font-bold">
+            <span className="code-tag mr-2 text-xs opacity-80">{item.code}</span>
+            {item.name}
+          </span>
+          <Sizes it={item} dark />
+        </span>
+        <span className="whitespace-nowrap text-lg font-extrabold">{priceText(item)}</span>
       </div>
     </div>
   );

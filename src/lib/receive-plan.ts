@@ -10,6 +10,7 @@ import {
   publicPrefix,
   slug,
   specCode,
+  variantSku,
 } from "./naming";
 
 export type LinePlan = {
@@ -20,7 +21,12 @@ export type LinePlan = {
   warns: string[];
   received: number | null;
   preview?: {
+    /** Variant SKU, e.g. TC-1005-14. */
     code: string;
+    /** Design code shared by all sizes, e.g. TC-1005. */
+    base: string;
+    /** True when this adds a size to a design that already has a code. */
+    newSize: boolean;
     friendly: string;
     spec: string;
     price: PriceResult;
@@ -69,6 +75,8 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
   const { ref } = ctx;
   const plans: Record<string, LinePlan> = {};
   const serial: Record<string, number> = { ...ctx.counters };
+  const alloc = chargeAllocation(d).perUnit;
+  const takenSkus = new Set(ctx.products.map((p) => p.code));
   const designMax: Record<string, number> = {};
   for (const f of ctx.families) {
     const k = [f.div, f.type, f.mat, f.sport].join("-");
@@ -155,6 +163,7 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
     let familyId: string | undefined;
     let sameAs: number | undefined;
     let renameFamily = false;
+    let base = "";
     if (c.family.startsWith("f:")) {
       familyMode = "existing";
       familyId = c.family.slice(2);
@@ -164,6 +173,7 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
         return;
       }
       designNo = f.design_no;
+      base = f.code ?? "";
       if (f.design_name) designName = f.design_name;
       else renameFamily = true;
     } else if (c.family.startsWith("l:")) {
@@ -177,6 +187,7 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
       }
       sameAs = refIdx + 1;
       designNo = rp.preview.designNo;
+      base = rp.preview.base;
       designName = rp.preview.designName;
       familyId = rp.preview.familyId;
     } else {
@@ -213,15 +224,29 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
     if (P.errors.length) return;
 
     const prefix = publicPrefix(div, type);
-    const no = serial[prefix] ?? 1001;
-    serial[prefix] = no + 1;
+    const newSize = !!base;
+    if (!base) {
+      const no = serial[prefix] ?? 1001;
+      serial[prefix] = no + 1;
+      base = `${prefix}-${no}`;
+    }
+    const sku = variantSku(base, size, unit, c.finish, ref.sizes, takenSkus);
+    takenSkus.add(sku);
     if (familyMode === "new") {
       designMax[k] = designNo;
       draftNames.set(designName.toLowerCase(), idx + 1);
     }
-    const price = computePrice({ unitCost: cost, division: div, type, settings: ref.settings });
+    const price = computePrice({
+      unitCost: cost,
+      division: div,
+      type,
+      settings: ref.settings,
+      extraPerUnit: alloc?.[l.id] ?? null,
+    });
     P.preview = {
-      code: `${prefix}-${no}`,
+      code: sku,
+      base,
+      newSize,
       friendly,
       spec,
       price,
@@ -235,6 +260,59 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
     };
   });
   return plans;
+}
+
+const r2 = (x: number) => Math.round(x * 100) / 100;
+
+/** Spreads the bill's extra charges over its lines by value (unit cost × billed quantity). Returns
+ *  the charge per unit for each line, or null when the bill has no charges (estimates apply). */
+export function chargeAllocation(d: Draft): {
+  net: number;
+  gst: number;
+  perUnit: Record<string, number> | null;
+} {
+  const rows = (d.charges ?? []).map((c) => ({ a: num(c.amount) ?? 0, g: num(c.gst) ?? 0 }));
+  const net = r2(rows.reduce((s, c) => s + c.a, 0));
+  const gst = r2(rows.reduce((s, c) => s + (c.a * c.g) / 100, 0));
+  if (d.type !== "bill" || net <= 0) return { net, gst, perUnit: null };
+  const vals = d.lines.map((l) => {
+    const c = num(l.cost);
+    const q = num(l.billed);
+    return { id: l.id, v: c != null && q != null && q > 0 ? c * q : 0, q: q ?? 0 };
+  });
+  const goods = vals.reduce((s, x) => s + x.v, 0);
+  if (goods <= 0) return { net, gst, perUnit: null };
+  const perUnit: Record<string, number> = {};
+  for (const x of vals) perUnit[x.id] = x.q > 0 ? r2((net * x.v) / goods / x.q) : 0;
+  return { net, gst, perUnit };
+}
+
+/** What the bill costs the company: goods + charges + GST (from the bill, or estimated). */
+export function billCosts(d: Draft, plans: Record<string, LinePlan>, ctx: PlanCtx) {
+  const ch = chargeAllocation(d);
+  let goods = 0;
+  let goodsGst = 0;
+  for (const l of d.lines) {
+    const v = (num(l.cost) ?? 0) * (num(l.billed) ?? 0);
+    goods += v;
+    const P = plans[l.id];
+    const known = P?.productId ? ctx.products.find((p) => p.id === P.productId) : undefined;
+    const rate = known?.gst ?? P?.preview?.price.gst ?? 18;
+    goodsGst += (v * Number(rate)) / 100;
+  }
+  const typed = num(d.billGst);
+  const gstEstimated = r2(goodsGst + ch.gst);
+  const gst = typed != null ? r2(typed) : gstEstimated;
+  goods = r2(goods);
+  return {
+    goods,
+    charges: ch.net,
+    gst,
+    gstEstimated,
+    gstFromBill: typed != null,
+    total: r2(goods + ch.net + gst),
+    perUnit: ch.perUnit,
+  };
 }
 
 export function summarise(d: Draft, plans: Record<string, LinePlan>) {

@@ -27,6 +27,15 @@ export type DraftLine = {
   };
 };
 export type VendorForm = Record<string, string>;
+/** A charge on the bill besides the goods: shipping, packaging, loading… (amount before GST). */
+export type Charge = { id: string; label: string; amount: string; gst: string };
+export const CHARGE_LABELS = [
+  "Shipping / freight",
+  "Packaging",
+  "Loading / handling",
+  "Insurance",
+  "Other",
+];
 export type Draft = {
   type: ReceiptType;
   vendorId: string; // "" | "NEW" | uuid
@@ -34,6 +43,9 @@ export type Draft = {
   billNo: string;
   billDate: string;
   billTotal: string;
+  charges: Charge[];
+  /** GST on the whole bill as printed; blank = estimate from product GST rates. */
+  billGst: string;
   lines: DraftLine[];
   /** Approver is editing someone's submitted bill before approving it. */
   reviewOf?: string | undefined;
@@ -86,6 +98,8 @@ export const newDraft = (): Draft => ({
   billNo: "",
   billDate: today(),
   billTotal: "",
+  charges: [],
+  billGst: "",
   lines: [],
 });
 export const newLine = (o: Partial<DraftLine> = {}): DraftLine => ({

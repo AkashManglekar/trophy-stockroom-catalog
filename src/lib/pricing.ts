@@ -8,6 +8,9 @@ export type PriceInput = {
   settings: AppSettings;
   mode?: PriceMode | string | null;
   value?: number | null;
+  /** Actual bill charges (shipping, packaging…) per unit. When set, it replaces the division's
+   *  estimated freight % and packaging. */
+  extraPerUnit?: number | null | undefined;
 };
 export type PriceResult = {
   landed: number | null;
@@ -56,8 +59,13 @@ export function computePrice(p: PriceInput): PriceResult {
   const rd = Number(d.rounding) || 1;
   const ceil = (x: number) => Math.ceil(x / rd - 1e-9) * rd;
   const cost = p.unitCost;
+  const extra = p.extraPerUnit;
   const landed =
-    cost == null ? null : r2(cost * (1 + Number(d.freight_pct) / 100) + Number(d.packaging));
+    cost == null
+      ? null
+      : extra != null && Number.isFinite(extra)
+        ? r2(cost + extra)
+        : r2(cost * (1 + Number(d.freight_pct) / 100) + Number(d.packaging));
   const mode = (p.mode as PriceMode) || "auto";
   const value = p.value ?? null;
   let selling: number | null = null;

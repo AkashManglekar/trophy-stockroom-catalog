@@ -16,7 +16,7 @@ import {
   type VendorCode,
 } from "./domain";
 import { computePrice, pricePayload } from "./pricing";
-import { designNameProblem } from "./naming";
+import { designNameProblem, sizeLabel } from "./naming";
 import { photoUrl } from "./photos";
 
 const STALE = 30_000;
@@ -190,6 +190,7 @@ export async function repriceProducts(products: Product[], ref: RefData): Promis
       settings: ref.settings,
       mode: p.price_mode,
       value: p.price_value,
+      extraPerUnit: p.extra_cost,
     });
     const pl = pricePayload(r);
     const same =
@@ -222,7 +223,9 @@ export async function repriceProducts(products: Product[], ref: RefData): Promis
 }
 
 export function priceFor(
-  p: Pick<Product, "div" | "type" | "unit_cost" | "price_mode" | "price_value">,
+  p: Pick<Product, "div" | "type" | "unit_cost" | "price_mode" | "price_value"> & {
+    extra_cost?: number | null | undefined;
+  },
   ref: RefData,
 ) {
   const d = ref.divisions.find((x) => x.code === p.div);
@@ -235,6 +238,7 @@ export function priceFor(
     settings: ref.settings,
     mode: p.price_mode,
     value: p.price_value,
+    extraPerUnit: p.extra_cost ?? null,
   });
 }
 
@@ -258,6 +262,24 @@ export function attentionReasons(
   }
   if (p.selling != null && p.landed != null && p.selling <= p.landed) out.push("below cost");
   return out;
+}
+
+/** The product code shared by every size of a design (falls back to the SKU). */
+export function designCode(p: Pick<Product, "code" | "family_id">, families: Family[]): string {
+  return families.find((f) => f.id === p.family_id)?.code ?? p.code;
+}
+
+/** "14in", "14in · Silver" when the design comes in several finishes, "" when the type has no size. */
+export function variantLabel(
+  p: Pick<Product, "size" | "finish" | "div" | "type">,
+  ref: RefData | undefined,
+  withFinish = false,
+): string {
+  if (!ref) return "";
+  const t = ref.types.find((x) => x.div === p.div && x.code === p.type);
+  const s = sizeLabel(p.size, t?.size_unit ?? "none", ref.sizes);
+  const f = withFinish ? ref.finishes.find((x) => x.code === p.finish)?.name : "";
+  return [s, f].filter(Boolean).join(" · ");
 }
 
 export function errMsg(e: unknown) {

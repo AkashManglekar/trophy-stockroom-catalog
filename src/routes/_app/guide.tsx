@@ -67,12 +67,16 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     body: (
       <>
         <p className="text-sm">
-          Every product has a short public code and a friendly name. Both go on the tag.
+          Every design has a short public code and a name. Both go on the tag, with the size.
         </p>
         <p className="text-sm">
           <Code>TC-1001</Code> = <b>T</b> division (Trophies) · <b>C</b> type (Cup) · <b>1001</b>{" "}
-          running number. Name: <b>Champion Cup · 12in · Gold</b> — design name, size, finish. Every
-          size and finish is its own code.
+          running number. One code per design: every size of Champion Cup is <Code>TC-1001</Code>.
+        </p>
+        <p className="text-sm">
+          Each size has its own price, stock and SKU — <Code>TC-1001-12</Code> is the 12in,{" "}
+          <Code>TC-1001-16</Code> the 16in. Tag pieces with the product code and size; the SKU is
+          the barcode and the Zoho SKU. A new size of an existing design keeps the same code.
         </p>
         <Ul>
           <li>

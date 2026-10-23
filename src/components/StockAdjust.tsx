@@ -174,8 +174,11 @@ export function BulkAdjust({ products, onClose }: { products: Product[]; onClose
     const t = text.trim().toLowerCase();
     if (!t) return undefined;
     const code = t.split(" · ")[0]!.trim();
+    // A design code (TC-1005) points at its only size; with several sizes the user must pick one.
+    const sizes = live.filter((p) => p.code.toLowerCase().startsWith(`${code}-`));
     return (
       byCode.get(code) ??
+      (sizes.length === 1 ? sizes[0] : undefined) ??
       live.find((p) => `${p.code} · ${p.friendly_name}`.toLowerCase() === t) ??
       (live.filter((p) => p.friendly_name.toLowerCase() === t).length === 1
         ? live.find((p) => p.friendly_name.toLowerCase() === t)
@@ -193,7 +196,11 @@ export function BulkAdjust({ products, onClose }: { products: Product[]; onClose
     const err = !r.text.trim()
       ? ""
       : !p
-        ? "No product with that code"
+        ? live.some((x) =>
+            x.code.toLowerCase().startsWith(`${r.text.trim().toLowerCase().split(" · ")[0]}-`),
+          )
+          ? "Several sizes — pick the size from the list"
+          : "No product with that code"
         : dup
           ? "Listed twice"
           : q == null

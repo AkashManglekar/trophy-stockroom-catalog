@@ -193,6 +193,7 @@ export type Database = {
       }
       design_families: {
         Row: {
+          code: string | null
           design_name: string | null
           design_no: number
           div: string
@@ -202,6 +203,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          code?: string | null
           design_name?: string | null
           design_no: number
           div: string
@@ -211,6 +213,7 @@ export type Database = {
           type: string
         }
         Update: {
+          code?: string | null
           design_name?: string | null
           design_no?: number
           div?: string
@@ -324,6 +327,7 @@ export type Database = {
       }
       products: {
         Row: {
+          extra_cost: number | null
           award_class: string | null
           bulk_min_qty: number | null
           bulk_price: number | null
@@ -360,6 +364,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          extra_cost?: number | null
           award_class?: string | null
           bulk_min_qty?: number | null
           bulk_price?: number | null
@@ -396,6 +401,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          extra_cost?: number | null
           award_class?: string | null
           bulk_min_qty?: number | null
           bulk_price?: number | null
@@ -450,6 +456,7 @@ export type Database = {
       }
       receipt_lines: {
         Row: {
+          extra_cost: number | null
           billed_qty: number | null
           created_new: boolean
           description: string | null
@@ -463,6 +470,7 @@ export type Database = {
           vendor_item_code: string | null
         }
         Insert: {
+          extra_cost?: number | null
           billed_qty?: number | null
           created_new?: boolean
           description?: string | null
@@ -476,6 +484,7 @@ export type Database = {
           vendor_item_code?: string | null
         }
         Update: {
+          extra_cost?: number | null
           billed_qty?: number | null
           created_new?: boolean
           description?: string | null
@@ -507,6 +516,11 @@ export type Database = {
       }
       receipts: {
         Row: {
+          charges: Json | null
+          goods_value: number | null
+          charges_total: number | null
+          gst_total: number | null
+          total_cost: number | null
           approved_by_email: string | null
           bill_date: string | null
           bill_no: string | null
@@ -522,6 +536,11 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          charges?: Json | null
+          goods_value?: number | null
+          charges_total?: number | null
+          gst_total?: number | null
+          total_cost?: number | null
           approved_by_email?: string | null
           bill_date?: string | null
           bill_no?: string | null
@@ -537,6 +556,11 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          charges?: Json | null
+          goods_value?: number | null
+          charges_total?: number | null
+          gst_total?: number | null
+          total_cost?: number | null
           approved_by_email?: string | null
           bill_date?: string | null
           bill_no?: string | null
@@ -847,6 +871,8 @@ export type Database = {
       }
       can_approve: { Args: never; Returns: boolean }
       can_publish: { Args: never; Returns: boolean }
+      size_label: { Args: { p_size: string; p_unit: string }; Returns: string }
+      size_tag: { Args: { p_size: string; p_unit: string }; Returns: string }
       clear_samples: { Args: never; Returns: string[] }
       delete_product: { Args: { p_product: string }; Returns: string[] }
       reject_bill: { Args: { p_id: string; p_note: string }; Returns: undefined }
@@ -879,6 +905,7 @@ export type Database = {
           photos: string[]
           price: number
           type_name: string
+          variants: Json
         }[]
       }
       get_catalogue_logo: { Args: never; Returns: string }

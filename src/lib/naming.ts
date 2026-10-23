@@ -25,6 +25,30 @@ export function sizeLabel(size: string, unit: string, sizes: CodeItem[]): string
   return `${Number.isFinite(n) ? n : size}${unit}`;
 }
 
+/** Size part of a SKU, mirroring the database: 011 (in) → "11", apparel LRG → "L", none → "". */
+export function sizeTag(size: string, unit: string, sizes: CodeItem[]): string {
+  if (unit === "none" || !size || size === "000") return "";
+  if (unit === "size")
+    return (sizes.find((x) => x.code === size)?.name ?? size)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+  return size.replace(/^0+/, "") || "0";
+}
+
+/** Variant SKU: design code + size, plus finish only if that size already exists in another finish. */
+export function variantSku(
+  base: string,
+  size: string,
+  unit: string,
+  finish: string,
+  sizes: CodeItem[],
+  taken: Set<string>,
+): string {
+  const t = sizeTag(size, unit, sizes);
+  const v = t ? `${base}-${t}` : base;
+  return taken.has(v) ? `${v}-${finish || "NA"}` : v;
+}
+
 export function friendlyName(
   designName: string,
   size: string,
