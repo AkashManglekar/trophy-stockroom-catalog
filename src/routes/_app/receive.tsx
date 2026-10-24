@@ -434,6 +434,7 @@ function ReceivePage() {
             family_id: pv.familyMode === "existing" ? pv.familyId : null,
             same_as_line: sameIdx != null ? String(sameIdx) : null,
             design_name: pv.designName,
+            internal: pv.familyMode === "new" && l.cls.internal === "1",
             friendly_name: pv.friendly,
             description: l.cls.description.trim() || l.desc,
           },
@@ -1334,6 +1335,24 @@ function LineCard({
                     onChange={(e) => updCls(l.id, "designName", e.target.value)}
                   />
                 </Field>
+                {c.family === "new" ? (
+                  <Field label="Catalogue">
+                    <Select
+                      value={c.internal === "1" ? "1" : ""}
+                      onChange={(e) => updCls(l.id, "internal", e.target.value)}
+                    >
+                      <option value="">Show on catalogue</option>
+                      <option value="1">Internal only (marketing, staff use)</option>
+                    </Select>
+                  </Field>
+                ) : c.family.startsWith("f:") &&
+                  fams.find((f) => "f:" + f.id === c.family)?.internal ? (
+                  <Field label="Catalogue">
+                    <span className="flex h-10 items-center text-sm text-muted-foreground">
+                      Internal only
+                    </span>
+                  </Field>
+                ) : null}
                 <Field label="Shelf location">
                   <TextInput
                     value={l.location}

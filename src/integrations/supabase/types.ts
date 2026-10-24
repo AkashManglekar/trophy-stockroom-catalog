@@ -411,6 +411,7 @@ export type Database = {
           design_no: number
           div: string
           id: string
+          internal: boolean
           mat: string
           sport: string
           type: string
@@ -421,6 +422,7 @@ export type Database = {
           design_no: number
           div: string
           id?: string
+          internal?: boolean
           mat: string
           sport: string
           type: string
@@ -431,6 +433,7 @@ export type Database = {
           design_no?: number
           div?: string
           id?: string
+          internal?: boolean
           mat?: string
           sport?: string
           type?: string

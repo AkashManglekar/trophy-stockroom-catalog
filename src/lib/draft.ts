@@ -26,6 +26,8 @@ export type DraftLine = {
     family: string; // "new" | "f:<familyId>" | "l:<lineId>"
     designName: string;
     description: string;
+    /** "1" = internal stock only (never on the public catalogue). Applies to a new design. */
+    internal?: string | undefined;
   };
 };
 export type VendorForm = Record<string, string>;

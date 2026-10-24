@@ -6,6 +6,8 @@ import {
   ArchiveRestore,
   ArrowLeft,
   Copy,
+  Eye,
+  EyeOff,
   ExternalLink,
   LayoutGrid,
   List,
@@ -95,15 +97,22 @@ function ProductsPage() {
         p,
         attn: attentionReasons(p, ref.data!, families.data ?? [], photoMap.get(p.id)?.length ?? 0),
       }))
-      .filter(
-        ({ p, attn }) =>
+      .filter(({ p, attn }) => {
+        const internal = !!families.data?.find((f) => f.id === p.family_id)?.internal;
+        const shown = !HIDDEN_STATUSES.includes(p.status);
+        return (
           (!search.div || p.div === search.div) &&
           (!search.status
-            ? !HIDDEN_STATUSES.includes(p.status)
+            ? shown
             : search.status === "ATTN"
-              ? attn.length > 0 && !HIDDEN_STATUSES.includes(p.status)
-              : p.status === search.status),
-      )
+              ? attn.length > 0 && shown
+              : search.status === "INTERNAL"
+                ? internal && shown
+                : search.status === "PUBLIC"
+                  ? !internal && shown
+                  : p.status === search.status)
+        );
+      })
       .filter(
         ({ p }) =>
           !q ||
@@ -162,6 +171,7 @@ function ProductsPage() {
             .map((x) => variantLabel(x.p, ref.data, hasManyFinishes(items)))
             .filter(Boolean),
           sample: items.some((x) => x.p.is_sample),
+          internal: !!fam?.internal,
         };
       })
       .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
@@ -183,6 +193,13 @@ function ProductsPage() {
   const low = rows.filter(({ attn }) => attn.includes("low stock")).length;
   const noPhoto = rows.filter(({ attn }) => attn.includes("photo")).length;
   const archived = (products.data ?? []).filter((p) => p.status === "Archived").length;
+  const internalCount = (families.data ?? []).filter(
+    (f) =>
+      f.internal &&
+      (products.data ?? []).some(
+        (p) => p.family_id === f.id && !HIDDEN_STATUSES.includes(p.status),
+      ),
+  ).length;
 
   if (!ref.data) return <Empty>Loading…</Empty>;
   return (
@@ -243,6 +260,8 @@ function ProductsPage() {
           >
             <option value="">Any status (not archived)</option>
             <option value="ATTN">Needs attention</option>
+            <option value="PUBLIC">On the catalogue</option>
+            <option value="INTERNAL">Internal stock</option>
             {PRODUCT_STATUSES.map((s) => (
               <option key={s}>{s}</option>
             ))}
@@ -252,11 +271,19 @@ function ProductsPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
           <Pill>
-            {groups.length} products · {rows.length} sizes
+            {groups.length} {groups.length === 1 ? "product" : "products"} · {rows.length}{" "}
+            {rows.length === 1 ? "size" : "sizes"}
           </Pill>
           <Pill>stock value {inr(Math.round(stockValue))}</Pill>
           {low ? <Pill tone="warn">{low} at or below reorder</Pill> : null}
           {noPhoto ? <Pill>{noPhoto} without photos</Pill> : null}
+          {internalCount && search.status !== "INTERNAL" ? (
+            <button onClick={() => set({ status: "INTERNAL" })}>
+              <Pill className="cursor-pointer underline-offset-2 hover:underline">
+                {internalCount} internal
+              </Pill>
+            </button>
+          ) : null}
           {archived && search.status !== "Archived" ? (
             <button onClick={() => set({ status: "Archived" })}>
               <Pill className="cursor-pointer underline-offset-2 hover:underline">
@@ -347,6 +374,11 @@ function ProductsPage() {
                         </Pill>
                       )}
                       {g.sample && <Pill className="w-fit">sample</Pill>}
+                      {g.internal && (
+                        <Pill className="w-fit">
+                          <EyeOff className="size-3" /> internal
+                        </Pill>
+                      )}
                     </span>
                   </button>
                 );
@@ -387,6 +419,7 @@ function ProductsPage() {
                         </td>
                         <td className="p-2.5">
                           {g.name} {g.attn.includes("name") && <Pill tone="warn">name needed</Pill>}
+                          {g.internal && <Pill className="ml-1">internal</Pill>}
                         </td>
                         <td className="hidden p-2.5 text-xs sm:table-cell">
                           {g.sizes[0] || "—"}
@@ -592,6 +625,20 @@ function ProductPanel({
     toast.success(msg);
     inv("products");
   }
+  async function setInternal(internal: boolean) {
+    if (!fam) return;
+    const { error } = await supabase.from("design_families").update({ internal }).eq("id", fam.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(
+      internal
+        ? `${fam.code ?? p.code} is now internal stock — hidden from the catalogue`
+        : `${fam.code ?? p.code} will show on the catalogue`,
+    );
+    inv("families");
+  }
   async function rename(name: string) {
     if (!fam || name.trim() === (fam.design_name ?? "")) return;
     const prob = designNameProblem(name, ref_, !!t?.is_service);
@@ -704,6 +751,16 @@ function ProductPanel({
         <StatusPill s={p.status} />
         {p.is_sample && <Pill>sample</Pill>}
       </div>
+      {fam && (
+        <CatalogueVisibility
+          internal={!!fam.internal}
+          divOnCatalogue={ref_.settings.catalogue_divisions.includes(p.div)}
+          divName={d?.name ?? p.div}
+          sizes={siblings.length}
+          canEdit={canEdit}
+          onChange={setInternal}
+        />
+      )}
 
       {main && urls[main.path ?? ""] ? (
         <img
@@ -1105,5 +1162,58 @@ function ProductPanel({
         </div>
       )}
     </aside>
+  );
+}
+
+/** Whether this design (all its sizes) appears on the public catalogue, or stays internal stock. */
+function CatalogueVisibility({
+  internal,
+  divOnCatalogue,
+  divName,
+  sizes,
+  canEdit,
+  onChange,
+}: {
+  internal: boolean;
+  divOnCatalogue: boolean;
+  divName: string;
+  sizes: number;
+  canEdit: boolean;
+  onChange: (internal: boolean) => void;
+}) {
+  const note = internal
+    ? "Internal stock — tracked here, never shown on the catalogue or in quotes."
+    : divOnCatalogue
+      ? "Shown on the public catalogue when active and priced."
+      : `Not on the catalogue — ${divName} isn't a catalogue division (Settings → Public catalogue).`;
+  return (
+    <div className="grid gap-2 rounded-xl border px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Public catalogue{sizes > 1 ? ` · all ${sizes} sizes` : ""}
+        </span>
+        <div className="inline-flex gap-1 rounded-full border bg-muted p-1" role="radiogroup">
+          {[
+            { v: false, label: "Show", icon: Eye },
+            { v: true, label: "Internal only", icon: EyeOff },
+          ].map(({ v, label, icon: Icon }) => (
+            <button
+              key={label}
+              role="radio"
+              aria-checked={internal === v}
+              disabled={!canEdit}
+              onClick={() => internal !== v && onChange(v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase text-muted-foreground disabled:cursor-not-allowed",
+                internal === v && "bg-card text-primary shadow-sm",
+              )}
+            >
+              <Icon className="size-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">{note}</p>
+    </div>
   );
 }

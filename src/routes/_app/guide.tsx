@@ -184,6 +184,12 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           Item on the shelf with no code yet? Receive stock → <b>New items (no bill)</b> creates its
           code and opening stock.
         </li>
+        <li>
+          <b>Internal stock</b> (Sportagon caps, staff T-shirts, marketing material): open the
+          product → Public catalogue → <b>Internal only</b>. It stays in stock and costs, but never
+          shows on the catalogue or in quotes. When receiving a new design, pick “Internal only”
+          under Catalogue. Hand-outs: Adjust stock → Remove → Marketing / giveaway or Staff use.
+        </li>
       </Ul>
     ),
   },

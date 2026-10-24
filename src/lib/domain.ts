@@ -124,6 +124,8 @@ export const ADJUST_REASONS: Record<AdjustMode, readonly string[]> = {
     "Damaged",
     "Lost / missing",
     "Used for display",
+    "Marketing / giveaway",
+    "Staff use",
     "Gifted / sample",
     "Transfer out",
     "Other (remove)",
@@ -136,6 +138,8 @@ export const NOTE_HINT: Record<string, string> = {
   "Opening stock": "Count sheet / shelf reference",
   "Customer return": "Customer name or invoice no.",
   "Physical count": "Count reference",
+  "Marketing / giveaway": "Event or campaign (e.g. Pune league, Instagram contest)",
+  "Staff use": "Who received it",
 };
 export const AWARD_CLASSES = ["Individual", "Team", "Participation", "Corporate"] as const;
 
