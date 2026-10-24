@@ -95,23 +95,24 @@ export const useVendorCodes = () =>
     staleTime: STALE,
     queryFn: () => all<VendorCode>(supabase.from("vendor_codes").select("*")),
   });
+/** The 40 latest bills with their lines, in one request. */
 export const useReceipts = () =>
   useQuery({
     queryKey: ["receipts"],
     staleTime: STALE,
-    queryFn: async () => {
-      const receipts = await all<Receipt>(
-        supabase.from("receipts").select("*").order("created_at", { ascending: false }).limit(40),
-      );
-      const ids = receipts.map((r) => r.id);
-      const lines = ids.length
-        ? await all<ReceiptLine>(
-            supabase.from("receipt_lines").select("*").in("receipt_id", ids).order("line_no"),
-          )
-        : [];
-      return receipts.map((r) => ({ ...r, lines: lines.filter((l) => l.receipt_id === r.id) }));
-    },
+    queryFn: () => fetchBills(40),
   });
+
+async function fetchBills(limit: number): Promise<BillWithLines[]> {
+  const { data, error } = await supabase
+    .from("receipts")
+    .select("*, lines:receipt_lines(*)")
+    .order("created_at", { ascending: false })
+    .order("line_no", { referencedTable: "receipt_lines", ascending: true })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as BillWithLines[];
+}
 /** Bills submitted for approval: approvers see everyone's, others see their own. */
 export const useSubmissions = (enabled = true) =>
   useQuery({
@@ -133,24 +134,7 @@ export const useBills = () =>
   useQuery({
     queryKey: ["receipts", "all"],
     staleTime: STALE,
-    queryFn: async () => {
-      const receipts = await all<Receipt>(
-        supabase.from("receipts").select("*").order("created_at", { ascending: false }).limit(2000),
-      );
-      const lines: ReceiptLine[] = [];
-      for (let i = 0; i < receipts.length; i += 200) {
-        const ids = receipts.slice(i, i + 200).map((r) => r.id);
-        if (ids.length)
-          lines.push(
-            ...(await all<ReceiptLine>(
-              supabase.from("receipt_lines").select("*").in("receipt_id", ids).order("line_no"),
-            )),
-          );
-      }
-      const by = new Map<string, ReceiptLine[]>();
-      for (const l of lines) by.set(l.receipt_id, [...(by.get(l.receipt_id) ?? []), l]);
-      return receipts.map((r) => ({ ...r, lines: by.get(r.id) ?? [] }));
-    },
+    queryFn: () => fetchBills(1000),
   });
 export type BillWithLines = Receipt & { lines: ReceiptLine[] };
 

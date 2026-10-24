@@ -44,12 +44,65 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+// The public catalogue page is the same for every visitor, so a ready copy is kept at the edge for
+// two minutes instead of rebuilding it per visit. The key carries the build id, so a new deploy
+// never serves a page that points at old script files.
+declare const __BUILD_ID__: string | undefined;
+const BUILD = typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "dev";
+const PAGE_TTL = 120;
+type EdgeCache = {
+  match(r: Request): Promise<Response | undefined>;
+  put(r: Request, res: Response): Promise<void>;
+};
+const edgeCache = (): EdgeCache | null =>
+  (globalThis as unknown as { caches?: { default?: EdgeCache } }).caches?.default ?? null;
+const waitUntil = (ctx: unknown, p: Promise<unknown>) => {
+  const w = (ctx as { waitUntil?: (p: Promise<unknown>) => void } | null)?.waitUntil;
+  if (typeof w === "function") w.call(ctx, p);
+  else void p;
+};
+
+function cataloguePageKey(request: Request): Request | null {
+  if (request.method !== "GET") return null;
+  const url = new URL(request.url);
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host)
+    .split(",")[0]!
+    .trim()
+    .toLowerCase()
+    .split(":")[0];
+  if (host !== "catalogue.sportagon.in" || url.pathname !== "/") return null;
+  return new Request(`https://${host}/__page/${BUILD}`, { method: "GET" });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const key = cataloguePageKey(request);
+      const cache = key ? edgeCache() : null;
+      if (key && cache) {
+        const hit = await cache.match(key).catch(() => undefined);
+        if (hit) return hit;
+      }
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const response = await normalizeCatastrophicSsrResponse(
+        await handler.fetch(request, env, ctx),
+      );
+      if (
+        key &&
+        cache &&
+        response.status === 200 &&
+        !response.headers.has("set-cookie") &&
+        (response.headers.get("content-type") ?? "").includes("text/html")
+      ) {
+        const copy = new Response(response.body, response);
+        copy.headers.set("cache-control", `public, max-age=0, s-maxage=${PAGE_TTL}`);
+        waitUntil(
+          ctx,
+          cache.put(key, copy.clone()).catch(() => undefined),
+        );
+        return copy;
+      }
+      return response;
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {

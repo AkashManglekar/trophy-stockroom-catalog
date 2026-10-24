@@ -1,15 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { inr, type Product } from "@/lib/domain";
 import {
   designCode,
@@ -299,34 +289,7 @@ function Dashboard() {
 
       <Card>
         <CardTitle>Sales vs purchases · last 6 months</CardTitle>
-        <div className="h-64 w-full">
-          <ResponsiveContainer>
-            <BarChart data={d.months} margin={{ left: 0, right: 8, top: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="m" tickLine={false} axisLine={false} fontSize={12} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                fontSize={11}
-                width={56}
-                tickFormatter={(v: number) =>
-                  v >= 100000
-                    ? `${(v / 100000).toFixed(1)}L`
-                    : v >= 1000
-                      ? `${Math.round(v / 1000)}k`
-                      : String(v)
-                }
-              />
-              <Tooltip
-                formatter={(v: number) => inr(v)}
-                contentStyle={{ borderRadius: 12, fontSize: 12 }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Sales" fill="var(--primary)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="Purchases" fill="var(--accent)" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <MonthBars data={d.months} />
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -514,5 +477,62 @@ function Line({
       <span className="wrap-any min-w-0 flex-1">{p.friendly_name}</span>
       <span className="text-xs tabular-nums">{right}</span>
     </Link>
+  );
+}
+
+const short = (v: number) =>
+  v >= 100000
+    ? `${(v / 100000).toFixed(1)}L`
+    : v >= 1000
+      ? `${Math.round(v / 1000)}k`
+      : String(Math.round(v));
+
+/** Two bars per month (sales, purchases) — plain markup, no chart library to download. */
+function MonthBars({ data }: { data: { m: string; Sales: number; Purchases: number }[] }) {
+  const max = Math.max(1, ...data.flatMap((x) => [x.Sales, x.Purchases]));
+  const series = [
+    { k: "Sales" as const, cls: "bg-primary" },
+    { k: "Purchases" as const, cls: "bg-accent" },
+  ];
+  return (
+    <div className="grid gap-2">
+      <div className="flex h-56 items-end gap-2 border-b pb-px sm:gap-4">
+        {data.map((x) => (
+          <div key={x.m} className="flex h-full min-w-0 flex-1 items-end justify-center gap-1">
+            {series.map(({ k, cls }) => (
+              <div
+                key={k}
+                title={`${x.m} · ${k}: ${inr(Math.round(x[k]))}`}
+                className="flex h-full w-full max-w-7 flex-col items-stretch justify-end"
+              >
+                {x[k] > 0 && (
+                  <span className="hidden pb-0.5 text-center text-[10px] tabular-nums text-muted-foreground sm:block">
+                    {short(x[k])}
+                  </span>
+                )}
+                <div
+                  className={cn("w-full rounded-t-md", cls)}
+                  style={{ height: `${x[k] > 0 ? Math.max(1.5, (x[k] / max) * 88) : 0}%` }}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2 sm:gap-4">
+        {data.map((x) => (
+          <span key={x.m} className="min-w-0 flex-1 text-center text-xs text-muted-foreground">
+            {x.m}
+          </span>
+        ))}
+      </div>
+      <div className="flex justify-center gap-4 text-xs">
+        {series.map(({ k, cls }) => (
+          <span key={k} className="flex items-center gap-1.5">
+            <span className={cn("size-2.5 rounded-sm", cls)} /> {k}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }

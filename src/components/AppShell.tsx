@@ -1,5 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   BookOpen,
   Gauge,
@@ -52,6 +52,16 @@ export function AppShell({
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { email, role, signOut } = useAuth();
   const [more, setMore] = useState(false);
+  const router = useRouter();
+  // Fetch every page's code while the app is idle, so switching tabs never waits for a download.
+  useEffect(() => {
+    const idle =
+      (window as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback ??
+      ((cb: () => void) => window.setTimeout(cb, 1200));
+    idle(() => {
+      for (const n of NAV) router.preloadRoute({ to: n.to }).catch(() => undefined);
+    });
+  }, [router]);
   const extra = NAV.filter((n) => !n.main);
   const extraOn = extra.some((n) => path.startsWith(n.to));
   const extraBadge = extra.reduce((a, n) => a + (badges[n.to] ?? 0), 0);

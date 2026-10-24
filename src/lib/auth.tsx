@@ -1,8 +1,24 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Role } from "./domain";
+import { clearPersisted, persistQueries, restoreQueries } from "./query-persist";
+
+/** The signed-in session saved by Supabase on this device, read without waiting (verified right after). */
+function storedSession(): Session | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !/^sb-.+-auth-token$/.test(k)) continue;
+      const v = JSON.parse(localStorage.getItem(k) ?? "null") as Session | null;
+      if (v?.user?.id && v.refresh_token) return v;
+    }
+  } catch {
+    /* storage blocked */
+  }
+  return null;
+}
 
 type AuthState = {
   session: Session | null;
@@ -24,17 +40,30 @@ type AuthState = {
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  // Open straight away from this device's last copy; the network check happens in the background.
+  const [initial] = useState(() => {
+    restoreQueries(qc);
+    return storedSession();
+  });
+  const [session, setSession] = useState<Session | null>(initial);
+  const [loading, setLoading] = useState(!initial);
 
+  useEffect(() => persistQueries(qc), [qc]);
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((e, s) => {
+      setSession(s);
+      if (e === "SIGNED_OUT") {
+        clearPersisted();
+        qc.clear();
+      }
+    });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
     });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [qc]);
 
   const userId = session?.user.id ?? null;
   const roleQ = useQuery({
@@ -66,7 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     canEdit: role === "owner" || role === "editor",
     canContribute: role === "owner" || role === "editor" || role === "contributor",
     signOut: async () => {
+      clearPersisted();
       await supabase.auth.signOut();
+      qc.clear();
     },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
