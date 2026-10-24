@@ -41,21 +41,33 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
         </div>
         <Ul>
           <li>
-            <b>Receive stock</b> — everything that enters the store: vendor bills, opening counts,
-            customer returns.
+            <b>Dashboard</b> — sales, margin, stock value, what to reorder, bills due and enquiries.
           </li>
           <li>
-            <b>Products</b> — the master list with photos; open any code to see cost, price, stock
-            and vendors.
+            <b>Receive</b> — vendor bills and new items with no bill; bills waiting for approval.
           </li>
           <li>
-            <b>Vendors</b> — onboarding with every Zoho field, plus each vendor's code map.
+            <b>Bills</b> — every bill with its lines, charges and GST; payments, due dates and
+            delivery ratings. The owner can edit, reverse or delete a bill.
           </li>
           <li>
-            <b>Zoho export</b> — files in Zoho's exact import layout.
+            <b>Products</b> — one listing per design with its sizes; open any code for cost, price,
+            stock, bills and photos. Opening stock, returns and counts are stock adjustments here.
           </li>
           <li>
-            <b>Settings</b> — pricing, catalogue, team and code lists (owner/editors).
+            <b>Sales</b> — Zoho invoices and credit notes that take stock out or put it back.
+          </li>
+          <li>
+            <b>Enquiries</b> — quote requests from the public catalogue.
+          </li>
+          <li>
+            <b>Vendors</b> — onboarding with every Zoho field, code map, business and ratings.
+          </li>
+          <li>
+            <b>Zoho</b> — vendor and item files in Zoho's exact import layout.
+          </li>
+          <li>
+            <b>Settings</b> — pricing, catalogue, company GST, team and code lists (owner/editors).
           </li>
         </Ul>
       </>
@@ -110,7 +122,8 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     body: (
       <Ol>
         <li>
-          Receive stock → Vendor bill → vendor, bill number, date and the bill total before GST.
+          Receive → Vendor bill → vendor, bill number, date and the bill total before GST. Add
+          freight or packing under Charges and pick IGST or CGST + SGST; set the GST % on each line.
         </li>
         <li>Take a photo of the bill (or upload PDF/Excel, or paste text). AI fills the lines.</li>
         <li>
@@ -285,7 +298,10 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     title: "How prices are set",
     body: (
       <Ul>
-        <li>Landed cost = unit cost + freight % + packaging.</li>
+        <li>
+          Landed cost = unit cost + that product's share of the bill's charges (freight, packing…).
+          Items received without charges use the division's freight % and packaging instead.
+        </li>
         <li>
           Selling price = landed × band multiplier: under ₹1,000 ×2.5, ₹1,000–₹2,000 ×2, ₹2,001+
           ×1.5 (Settings).
@@ -303,7 +319,7 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     title: "Export to Zoho",
     body: (
       <Ol>
-        <li>Zoho export → upload Zoho's sample import file once for vendors and for items.</li>
+        <li>Zoho → upload Zoho's sample import file once for vendors and for items.</li>
         <li>Download the Vendors file and import it in Zoho first, then the Items file.</li>
         <li>
           Zoho applies opening stock only to new items; record later stock via purchase bills or
@@ -353,10 +369,10 @@ function GuidePage() {
         .from("guide_progress")
         .select("lesson_id")
         .eq("user_id", userId!);
-      return new Set((data ?? []).map((x) => x.lesson_id));
+      return (data ?? []).map((x) => x.lesson_id);
     },
   });
-  const done = q.data ?? new Set<string>();
+  const done = new Set<string>(Array.isArray(q.data) ? q.data : []);
   async function toggle(id: string) {
     const r = done.has(id)
       ? await supabase.from("guide_progress").delete().eq("user_id", userId!).eq("lesson_id", id)

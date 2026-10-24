@@ -23,3 +23,22 @@ describe("device cache", () => {
     expect(c.getQueryData(["products"])).toBeUndefined();
   });
 });
+
+describe("device cache safety", () => {
+  it("never saves data that would come back changed", async () => {
+    vi.useFakeTimers();
+    const a = new QueryClient();
+    const stop = persistQueries(a);
+    await a.fetchQuery({ queryKey: ["guide", "u1"], queryFn: async () => new Set(["x"]) });
+    await a.fetchQuery({ queryKey: ["members"], queryFn: async () => [{ email: "a" }] });
+    await a.fetchQuery({ queryKey: ["vendors"], queryFn: async () => [{ code: "V1" }] });
+    vi.advanceTimersByTime(2000);
+    stop();
+    vi.useRealTimers();
+    const b = new QueryClient();
+    restoreQueries(b);
+    expect(b.getQueryData(["guide", "u1"])).toBeUndefined();
+    expect(b.getQueryData(["members"])).toBeUndefined();
+    expect(b.getQueryData(["vendors"])).toEqual([{ code: "V1" }]);
+  });
+});
