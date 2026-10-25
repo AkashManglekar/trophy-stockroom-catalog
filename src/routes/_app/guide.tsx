@@ -163,8 +163,10 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           variant with its own stock and price — e.g. TM-1001-2.5-GD, TM-1001-2.5-SV,
           TM-1001-2.5-BZ. On the bill use <b>Sizes &amp; colours</b> (or “Several sizes / colours —
           one entry” on a line): type the details once, list the sizes (2, 2.5, 3), tick Gold /
-          Silver / Bronze and enter the quantity in each cell of the grid. The product page shows a
-          colour × size grid; the catalogue lets customers pick colour and size.
+          Silver / Bronze and enter the quantity in each cell of the grid. Costs: one default, a
+          cost per size (row “Cost ₹ / size”), or a cost in any cell — each variant’s selling price
+          is worked out from its own cost. The product page shows a colour × size grid; the
+          catalogue lets customers pick colour and size.
         </li>
         <li>
           <b>Design name</b> must be distinctive — customers see it. "Aurora", "Titan Cup" ✓ ·

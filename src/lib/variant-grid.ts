@@ -17,14 +17,17 @@ export type VariantGroup = {
   desc: string;
   location: string;
   gst?: string | undefined;
-  /** Unit cost used for every variant unless a cell has its own. */
+  /** Default unit cost: used where neither the size nor the cell has its own. */
   cost: string;
+  /** Unit cost per size (applies to every colour of that size unless the cell has its own). */
+  sizeCost?: Record<string, string> | undefined;
   cls: DraftLine["cls"];
   /** Sizes as typed ("2, 2.5, 3") for in/mm/ft; apparel size codes joined by commas. */
   sizesText: string;
   /** Finish codes; empty = the design comes in one colour (cls.finish). */
   colours: string[];
   cells: Record<string, VariantCell>;
+  /** @deprecated cost per cell is always available now. */
   perCellCost?: boolean | undefined;
   perCellReceived?: boolean | undefined;
 };
@@ -37,6 +40,17 @@ export type GridCtx = {
 };
 
 export const cellKey = (size: string, finish: string) => `${size}|${finish}`;
+
+/** Unit cost of one variant: its own cell cost, else its size's cost, else the default. */
+export function variantCost(
+  g: Pick<VariantGroup, "cells" | "sizeCost" | "cost">,
+  size: string,
+  finish: string,
+): string {
+  return (
+    g.cells[cellKey(size, finish)]?.cost?.trim() || g.sizeCost?.[size]?.trim() || g.cost.trim()
+  );
+}
 
 /** Stored sizes in the order typed, duplicates removed. */
 export function groupSizes(g: Pick<VariantGroup, "sizesText">, unit: string): string[] {
@@ -104,7 +118,7 @@ export function groupLines(g: VariantGroup, members: DraftLine[], ctx: GridCtx):
           desc: [g.desc.trim(), label].filter(Boolean).join(" · "),
           billed: cell.qty,
           received: g.perCellReceived ? (cell.received ?? "") : "",
-          cost: (g.perCellCost && cell.cost?.trim()) || g.cost,
+          cost: variantCost(g, size, finish),
           location: g.location,
           gst: g.gst,
           mode: existing ? "link" : "new",

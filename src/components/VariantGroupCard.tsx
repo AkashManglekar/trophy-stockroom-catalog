@@ -9,6 +9,7 @@ import {
   cellKey,
   groupColours,
   groupSizes,
+  variantCost,
   type VariantCell,
   type VariantGroup,
 } from "@/lib/variant-grid";
@@ -82,6 +83,10 @@ export function VariantGroupCard({
     });
   };
 
+  const planOf = (size: string, finish: string) => {
+    const m = members.find((x) => x.cls.size === size && x.cls.finish === finish);
+    return m ? plans[m.id] : undefined;
+  };
   const units = members.reduce((a, m) => a + (num(m.billed) ?? 0), 0);
   const value = members.reduce((a, m) => a + (num(m.billed) ?? 0) * (num(m.cost) ?? 0), 0);
   const errors = [...new Set(members.flatMap((m) => plans[m.id]?.errors ?? []))];
@@ -137,7 +142,7 @@ export function VariantGroupCard({
         <Field label="Description" className="col-span-2 sm:col-span-1">
           <TextInput value={g.desc} onChange={(e) => set({ desc: e.target.value })} />
         </Field>
-        <Field label={g.perCellCost ? "Default cost ₹" : "Unit cost ₹"}>
+        <Field label="Default cost ₹">
           <TextInput
             inputMode="decimal"
             value={g.cost}
@@ -339,6 +344,27 @@ export function VariantGroupCard({
                 </tr>
               </thead>
               <tbody>
+                {unit !== "none" && (
+                  <tr className="border-t bg-card/60">
+                    <th className="whitespace-nowrap p-1.5 text-left font-semibold">
+                      Cost ₹ / size
+                    </th>
+                    {sizes.map((s) => (
+                      <td key={s} className="p-1">
+                        <TextInput
+                          inputMode="decimal"
+                          aria-label={`Cost ${sizeLabel(s, unit, ref.sizes)}`}
+                          className="h-9 min-w-20 tabular-nums"
+                          placeholder={g.cost ? `₹${g.cost}` : "₹ cost"}
+                          value={g.sizeCost?.[s] ?? ""}
+                          onChange={(e) =>
+                            set({ sizeCost: { ...(g.sizeCost ?? {}), [s]: e.target.value } })
+                          }
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                )}
                 {colours.map((fc) => (
                   <tr key={fc || "one"} className="border-t">
                     <th className="whitespace-nowrap p-1.5 text-left font-semibold">
@@ -367,16 +393,30 @@ export function VariantGroupCard({
                               value={cell?.qty ?? ""}
                               onChange={(e) => setCell(s, fc, { qty: e.target.value })}
                             />
-                            {g.perCellCost && (
-                              <TextInput
-                                inputMode="decimal"
-                                aria-label="Unit cost"
-                                className="h-8 text-xs tabular-nums"
-                                placeholder={g.cost ? `₹${g.cost}` : "₹ cost"}
-                                value={cell?.cost ?? ""}
-                                onChange={(e) => setCell(s, fc, { cost: e.target.value })}
-                              />
-                            )}
+                            <TextInput
+                              inputMode="decimal"
+                              aria-label={`Cost ${sizeLabel(s, unit, ref.sizes)} ${colourName(fc)}`}
+                              className="h-8 text-xs tabular-nums"
+                              placeholder={(() => {
+                                const inherited = g.sizeCost?.[s]?.trim() || g.cost.trim();
+                                return inherited ? `₹${inherited}` : "₹ cost";
+                              })()}
+                              value={cell?.cost ?? ""}
+                              onChange={(e) => setCell(s, fc, { cost: e.target.value })}
+                            />
+                            {(() => {
+                              const P = planOf(s, fc);
+                              const price =
+                                P?.preview?.price.mrp ??
+                                (P?.productId
+                                  ? ctx.products.find((p) => p.id === P.productId)?.mrp
+                                  : null);
+                              return cell?.qty && price != null ? (
+                                <span className="text-[10.5px] text-muted-foreground tabular-nums">
+                                  ₹{variantCost(g, s, fc) || "—"} → sells {inr(price)}
+                                </span>
+                              ) : null;
+                            })()}
                             {isBill && g.perCellReceived && (
                               <TextInput
                                 inputMode="numeric"
@@ -402,15 +442,9 @@ export function VariantGroupCard({
           </p>
         )}
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
-          <label className="inline-flex items-center gap-1.5">
-            <input
-              type="checkbox"
-              className="size-4"
-              checked={!!g.perCellCost}
-              onChange={(e) => set({ perCellCost: e.target.checked })}
-            />
-            Different cost per variant
-          </label>
+          <span className="text-muted-foreground">
+            Cost: a cell's own cost, else its size's cost, else the default.
+          </span>
           {isBill && (
             <label className="inline-flex items-center gap-1.5">
               <input
@@ -439,7 +473,9 @@ export function VariantGroupCard({
                 )}
               >
                 {code ? <Code>{code}</Code> : null}
-                <span className="tabular-nums">× {m.billed}</span>
+                <span className="tabular-nums">
+                  × {m.billed} @ {m.cost ? inr(num(m.cost)) : "—"}
+                </span>
                 <span className="text-muted-foreground">
                   {P?.kind === "new" ? "new" : P ? "adds to stock" : ""}
                 </span>

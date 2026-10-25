@@ -1312,6 +1312,16 @@ function VariantMatrix({
                         <span className={on ? "opacity-85" : "text-muted-foreground"}>
                           {inr(x.mrp)}
                         </span>
+                        {x.unit_cost != null && (
+                          <span
+                            className={cn(
+                              "text-[10.5px]",
+                              on ? "opacity-75" : "text-muted-foreground",
+                            )}
+                          >
+                            cost {inr(x.unit_cost)}
+                          </span>
+                        )}
                       </button>
                     </td>
                   );

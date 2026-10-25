@@ -45,7 +45,6 @@ describe("size × colour bill entry", () => {
         [cellKey("002.5", "GD")]: { qty: "50", cost: "55" },
         [cellKey("002", "BZ")]: { qty: "" },
       },
-      perCellCost: true,
     };
     const lines = groupLines(g, [], ctx);
     expect(lines.map((l) => [l.cls.size, l.cls.finish, l.billed, l.cost])).toEqual([
@@ -95,5 +94,29 @@ describe("size × colour bill entry", () => {
     d = removeGroup(d, g.id);
     expect(d.lines).toEqual([other]);
     expect(d.grids?.[g.id]).toBeUndefined();
+  });
+});
+
+describe("cost by size and colour", () => {
+  it("uses the cell's cost, else the size's cost, else the default", () => {
+    const g = {
+      ...groupFromLine(newLine({ cost: "40", cls }), "in"),
+      sizesText: "2, 3",
+      colours: ["GD", "SV"],
+      sizeCost: { "003": "60" },
+      cells: {
+        [cellKey("002", "GD")]: { qty: "10", cost: "45" },
+        [cellKey("002", "SV")]: { qty: "10" },
+        [cellKey("003", "GD")]: { qty: "5", cost: "68" },
+        [cellKey("003", "SV")]: { qty: "5" },
+      },
+    };
+    const lines = groupLines(g, [], ctx);
+    expect(lines.map((l) => `${l.cls.size}-${l.cls.finish}=${l.cost}`)).toEqual([
+      "002-GD=45",
+      "003-GD=68",
+      "002-SV=40",
+      "003-SV=60",
+    ]);
   });
 });
