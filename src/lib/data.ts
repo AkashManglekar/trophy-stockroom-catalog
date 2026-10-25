@@ -278,6 +278,7 @@ export async function repriceProducts(products: Product[], ref: RefData): Promis
       mode: p.price_mode,
       value: p.price_value,
       extraPerUnit: p.extra_cost,
+      gstRate: p.gst,
     });
     const pl = pricePayload(r);
     const same =
@@ -312,6 +313,8 @@ export async function repriceProducts(products: Product[], ref: RefData): Promis
 export function priceFor(
   p: Pick<Product, "div" | "type" | "unit_cost" | "price_mode" | "price_value"> & {
     extra_cost?: number | null | undefined;
+    /** Selling GST % kept on the product (bill line GST, or set by hand). */
+    gst?: number | null | undefined;
   },
   ref: RefData,
 ) {
@@ -326,6 +329,7 @@ export function priceFor(
     mode: p.price_mode,
     value: p.price_value,
     extraPerUnit: p.extra_cost ?? null,
+    gstRate: p.gst ?? null,
   });
 }
 

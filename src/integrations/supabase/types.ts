@@ -608,6 +608,7 @@ export type Database = {
           floor_price: number | null
           friendly_name: string
           gst: number | null
+          gst_manual: boolean
           id: string
           is_sample: boolean
           landed: number | null
@@ -645,6 +646,7 @@ export type Database = {
           floor_price?: number | null
           friendly_name: string
           gst?: number | null
+          gst_manual?: boolean
           id?: string
           is_sample?: boolean
           landed?: number | null
@@ -682,6 +684,7 @@ export type Database = {
           floor_price?: number | null
           friendly_name?: string
           gst?: number | null
+          gst_manual?: boolean
           id?: string
           is_sample?: boolean
           landed?: number | null

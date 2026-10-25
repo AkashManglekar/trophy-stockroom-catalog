@@ -56,6 +56,7 @@ import { BulkAdjust, StockAdjustForm } from "@/components/StockAdjust";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { publicCatalogueUrl } from "@/lib/hosts";
+import { GST_RATES } from "@/lib/gst";
 
 type Search = {
   q?: string | undefined;
@@ -597,6 +598,64 @@ function ProductPanel({
     inv("products", "photos", "vendor_codes");
   }
 
+  // Selling GST: follows the GST % on the latest bill line unless set by hand (owner/editor).
+  const billsQ = useBills();
+  const lastBillGst = useMemo(() => {
+    let best: { at: string; rate: number } | null = null;
+    for (const b of billsQ.data ?? []) {
+      if (b.receipt_type !== "bill" || b.reversed_at) continue;
+      const at = b.created_at ?? "";
+      for (const ln of b.lines)
+        if (ln.product_id === p.id && ln.gst_rate != null && (!best || at > best.at))
+          best = { at, rate: Number(ln.gst_rate) };
+    }
+    return best?.rate ?? null;
+  }, [billsQ.data, p.id]);
+  async function setGst(rate: number | null, manual: boolean) {
+    const targets = siblings.length ? siblings : [p];
+    for (const x of targets) {
+      const gst = manual ? rate : (rate ?? x.gst);
+      // Changing the tax keeps the tag price: hold the MRP, the price before GST adjusts.
+      const keep =
+        gst != null && Number(gst) !== Number(x.gst) && x.mrp != null
+          ? {
+              price_mode: "mrp",
+              price_value: x.price_mode === "mrp" && x.price_value ? x.price_value : x.mrp,
+            }
+          : {};
+      const pr = priceFor({ ...x, ...keep, gst }, ref_);
+      const pl = pr ? pricePayload(pr) : null;
+      const { error } = await supabase
+        .from("products")
+        .update({
+          gst,
+          gst_manual: manual,
+          ...keep,
+          ...(pl
+            ? {
+                mrp: pl.mrp,
+                selling: pl.selling,
+                floor_price: pl.floor,
+                bulk_price: pl.bulk,
+                price_rule: pl.rule,
+              }
+            : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", x.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+    }
+    toast.success(
+      manual
+        ? `Selling GST set to ${rate}% for ${targets.length > 1 ? `all ${targets.length} sizes` : p.code}`
+        : `Selling GST follows the bill again${rate != null ? ` (${rate}%)` : ""}`,
+    );
+    inv("products");
+  }
+
   async function save(patch: Partial<Product>, msg = "Saved") {
     const next = { ...p, ...patch };
     const pr = priceFor(next, ref_);
@@ -872,9 +931,17 @@ function ProductPanel({
           <dd>{sizeLabel(p.size, t?.size_unit ?? "none", ref_.sizes) || "—"}</dd>
           <dt className="text-muted-foreground">Finish</dt>
           <dd>{ref_.finishes.find((m) => m.code === p.finish)?.name}</dd>
-          <dt className="text-muted-foreground">HSN · GST</dt>
+          <dt className="text-muted-foreground">HSN</dt>
+          <dd>{t?.hsn || "—"}</dd>
+          <dt className="text-muted-foreground">Selling GST</dt>
           <dd>
-            {t?.hsn} · {pct(p.gst)}
+            <SellingGst
+              p={p}
+              sizes={siblings.length}
+              lastBillGst={lastBillGst}
+              canEdit={canEdit}
+              onSet={setGst}
+            />
           </dd>
         </dl>
       </section>
@@ -933,7 +1000,14 @@ function ProductPanel({
                 save(
                   {
                     price_mode: e.target.value,
-                    price_value: e.target.value === "auto" ? null : p.price_value,
+                    price_value:
+                      e.target.value === "auto"
+                        ? null
+                        : e.target.value === "mrp"
+                          ? (p.mrp ?? p.price_value)
+                          : e.target.value === "fixed" && p.price_mode === "mrp"
+                            ? p.selling
+                            : p.price_value,
                   },
                   "Price rule updated",
                 )
@@ -943,6 +1017,7 @@ function ProductPanel({
               <option value="mult">Custom multiplier</option>
               <option value="margin">Custom margin %</option>
               <option value="fixed">Fixed selling price</option>
+              <option value="mrp">Fixed MRP (incl. GST)</option>
             </Select>
           </Field>
           {p.price_mode !== "auto" && (
@@ -952,7 +1027,9 @@ function ProductPanel({
                   ? "× landed"
                   : p.price_mode === "margin"
                     ? "Margin %"
-                    : "Selling ₹ before GST"
+                    : p.price_mode === "mrp"
+                      ? "MRP ₹ incl. GST"
+                      : "Selling ₹ before GST"
               }
             >
               <TextInput
@@ -1332,5 +1409,64 @@ function VariantMatrix({
         </table>
       </div>
     </div>
+  );
+}
+
+/** Selling GST %: shows where it comes from; owner/editors can set it (all sizes of the design). */
+function SellingGst({
+  p,
+  sizes,
+  lastBillGst,
+  canEdit,
+  onSet,
+}: {
+  p: Product;
+  sizes: number;
+  lastBillGst: number | null;
+  canEdit: boolean;
+  onSet: (rate: number | null, manual: boolean) => void;
+}) {
+  const source = p.gst_manual
+    ? "set by hand"
+    : lastBillGst != null
+      ? "from the bill"
+      : "type's usual rate";
+  if (!canEdit)
+    return (
+      <span>
+        {pct(p.gst)} <span className="text-xs text-muted-foreground">· {source}</span>
+      </span>
+    );
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Select
+        className="h-8 w-24 py-0 text-sm"
+        aria-label="Selling GST %"
+        value={p.gst == null ? "" : String(Number(p.gst))}
+        onChange={(e) => e.target.value !== "" && onSet(Number(e.target.value), true)}
+      >
+        {p.gst == null && <option value="">—</option>}
+        {[...new Set([...GST_RATES, ...(p.gst != null ? [Number(p.gst)] : [])])]
+          .sort((a, b) => a - b)
+          .map((r) => (
+            <option key={r} value={String(r)}>
+              {r}%
+            </option>
+          ))}
+      </Select>
+      <span className="text-xs text-muted-foreground">
+        {source}
+        {sizes > 1 ? ` · applies to all ${sizes} sizes` : ""}
+      </span>
+      {p.gst_manual && (
+        <button
+          type="button"
+          className="text-xs font-semibold text-primary underline-offset-2 hover:underline"
+          onClick={() => onSet(lastBillGst, false)}
+        >
+          Follow bill{lastBillGst != null ? ` (${lastBillGst}%)` : ""}
+        </button>
+      )}
+    </span>
   );
 }

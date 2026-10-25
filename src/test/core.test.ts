@@ -285,3 +285,44 @@ describe("price bands by product type", () => {
     ).toBe(199);
   });
 });
+
+describe("selling GST follows the bill", () => {
+  it("uses the product's GST % instead of the type's", () => {
+    // Medal billed at 5%: selling stays the same, the price on the tag carries 5% GST
+    const r = computePrice({ unitCost: 25, division: TR, type: CUP, settings: S, gstRate: 5 });
+    expect(r.gst).toBe(5);
+    expect(r.mrp).toBe(Math.ceil(((r.selling ?? 0) * 1.05) / 10) * 10);
+    const def = computePrice({ unitCost: 25, division: TR, type: CUP, settings: S });
+    expect(def.gst).toBe(18);
+    expect(def.selling).toBe(r.selling);
+  });
+});
+
+describe("fixed MRP: tax changes, tag price stays", () => {
+  it("holds the MRP and works the price before GST back from it", () => {
+    const at18 = computePrice({
+      unitCost: 25,
+      division: TR,
+      type: CUP,
+      settings: S,
+      mode: "mrp",
+      value: 130,
+      gstRate: 18,
+    });
+    expect(at18.mrp).toBe(130);
+    expect(at18.selling).toBe(110.17);
+    const at5 = computePrice({
+      unitCost: 25,
+      division: TR,
+      type: CUP,
+      settings: S,
+      mode: "mrp",
+      value: 130,
+      gstRate: 5,
+    });
+    expect(at5.mrp).toBe(130);
+    expect(at5.selling).toBe(123.81);
+    expect(at5.gst).toBe(5);
+    expect(at5.rule).toBe("Fixed MRP");
+  });
+});

@@ -1,6 +1,7 @@
 import type { AppSettings, Band, Division, ProductType } from "./domain";
 
-export type PriceMode = "auto" | "mult" | "margin" | "fixed";
+/** fixed = selling price before GST held; mrp = tag price incl. GST held (selling = MRP − GST). */
+export type PriceMode = "auto" | "mult" | "margin" | "fixed" | "mrp";
 export type PriceInput = {
   unitCost: number | null;
   division: Division;
@@ -11,6 +12,8 @@ export type PriceInput = {
   /** Actual bill charges (shipping, packaging…) per unit. When set, it replaces the division's
    *  estimated freight % and packaging. */
   extraPerUnit?: number | null | undefined;
+  /** Selling GST % for this product (from its bill line, or set by hand). Overrides the type's. */
+  gstRate?: number | null | undefined;
 };
 export type PriceResult = {
   landed: number | null;
@@ -67,6 +70,9 @@ export function gstFor(
 
 export function computePrice(p: PriceInput): PriceResult {
   const { division: d, type: t, settings: s } = p;
+  const fixedGst =
+    p.gstRate != null && Number.isFinite(Number(p.gstRate)) ? Number(p.gstRate) : null;
+  const gstOf = (selling: number | null) => fixedGst ?? gstFor(t, d, s, selling);
   const rd = Number(d.rounding) || 1;
   const ceil = (x: number) => Math.ceil(x / rd - 1e-9) * rd;
   const cost = p.unitCost;
@@ -85,7 +91,17 @@ export function computePrice(p: PriceInput): PriceResult {
   let mult: number | null = null;
   let margin: number | null = null;
 
-  if (mode === "fixed" && value != null && value > 0) {
+  if (mode === "mrp" && value != null && value > 0) {
+    mrp = value;
+    let g = gstOf(value / 1.05) ?? 0;
+    selling = r2(value / (1 + g / 100));
+    const g2 = gstOf(selling) ?? 0;
+    if (g2 !== g) {
+      g = g2;
+      selling = r2(value / (1 + g / 100));
+    }
+    rule = "Fixed MRP";
+  } else if (mode === "fixed" && value != null && value > 0) {
     selling = value;
     rule = "Fixed price";
   } else if (landed != null) {
@@ -121,9 +137,9 @@ export function computePrice(p: PriceInput): PriceResult {
     if (mult != null) {
       if (s.basis === "mrp") {
         mrp = ceil(landed * mult);
-        let g = gstFor(t, d, s, mrp / 1.05) ?? 0;
+        let g = gstOf(mrp / 1.05) ?? 0;
         selling = r2(mrp / (1 + g / 100));
-        const g2 = gstFor(t, d, s, selling) ?? 0;
+        const g2 = gstOf(selling) ?? 0;
         if (g2 !== g) {
           g = g2;
           selling = r2(mrp / (1 + g / 100));
@@ -135,7 +151,7 @@ export function computePrice(p: PriceInput): PriceResult {
       selling = ceil(landed / (1 - margin));
     }
   }
-  const gst = gstFor(t, d, s, selling);
+  const gst = gstOf(selling);
   if (mrp == null && selling != null && gst != null) mrp = ceil(selling * (1 + gst / 100));
   let floor = landed == null ? null : ceil(landed / (1 - Number(d.floor_margin) / 100));
   if (floor != null && selling != null && floor > selling) floor = selling;

@@ -437,12 +437,15 @@ function ReceivePage() {
           const prod = prodById.get(P.productId!)!;
           const pr =
             draft.type === "bill" && cost != null
-              ? priceFor({ ...prod, unit_cost: cost, extra_cost: extra }, ctx.ref)
+              ? priceFor(knownPricing(prod, l, cost, extra), ctx.ref)
               : null;
+          const lock = mrpLock(prod, l);
           return {
             ...base,
             product_id: P.productId,
-            prices: pr ? pricePayload(pr) : null,
+            prices: pr
+              ? { ...pricePayload(pr), ...(lock != null ? { lock_mrp: lock } : {}) }
+              : null,
             vendor_item_code: P.matchBy === "code" ? null : base.vendor_item_code,
           };
         }
@@ -1246,7 +1249,7 @@ function LineCard({
             prod.unit_cost != null &&
             (num(l.cost) !== prod.unit_cost || extra != null) &&
             (() => {
-              const np = priceFor({ ...prod, unit_cost: num(l.cost), extra_cost: extra }, ref);
+              const np = priceFor(knownPricing(prod, l, num(l.cost), extra), ref);
               return (
                 <Pill tone="warn">
                   cost {inr(prod.unit_cost)} → {inr(num(l.cost))} · price {inr(prod.mrp)} →{" "}
@@ -2014,6 +2017,31 @@ function BillApprovals({
       )}
     </Card>
   );
+}
+
+/** Selling GST for a product on this bill: the bill line's GST %, unless set by hand on the product. */
+function sellingGst(prod: Product, l: DraftLine): number | null {
+  if (prod.gst_manual) return prod.gst;
+  return num(l.gst) ?? prod.gst;
+}
+
+/** A changed GST on the bill keeps the product's tag price: the MRP is held, the price before
+ *  GST adjusts. Returns the MRP to hold, or null when GST is unchanged. */
+function mrpLock(prod: Product, l: DraftLine): number | null {
+  const g = sellingGst(prod, l);
+  if (g == null || prod.gst == null || Number(g) === Number(prod.gst) || prod.mrp == null)
+    return null;
+  return prod.price_mode === "mrp" && prod.price_value ? prod.price_value : prod.mrp;
+}
+function knownPricing(prod: Product, l: DraftLine, cost: number | null, extra: number | null) {
+  const lock = mrpLock(prod, l);
+  return {
+    ...prod,
+    unit_cost: cost,
+    extra_cost: extra,
+    gst: sellingGst(prod, l),
+    ...(lock != null ? { price_mode: "mrp", price_value: lock } : {}),
+  };
 }
 
 function isRecent(ts: string | null) {

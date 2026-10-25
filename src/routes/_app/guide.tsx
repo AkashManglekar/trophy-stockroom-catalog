@@ -332,7 +332,12 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           Medals (and any type added under Settings → Price bands by product type) use their own
           bands instead of the main ones.
         </li>
-        <li>Price on the tag = selling + GST.</li>
+        <li>
+          Price on the tag = selling + GST. The GST % is the one entered on the product's bill line;
+          the owner or an editor can change it on the product (Selling GST), and “Follow bill” goes
+          back to the bill's rate. When the GST changes on a product already priced, its MRP stays
+          the same and the price before GST adjusts (shown as “Fixed MRP”).
+        </li>
         <li>
           One item needs a different price? Products → item → Pricing → custom multiplier, margin or
           fixed price.

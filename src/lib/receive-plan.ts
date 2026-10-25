@@ -250,6 +250,8 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
       type,
       settings: ref.settings,
       extraPerUnit: alloc?.[l.id] ?? null,
+      // Selling GST follows the GST % typed on the bill line (else the type's usual rate).
+      gstRate: num(l.gst),
     });
     P.preview = {
       code: sku,
