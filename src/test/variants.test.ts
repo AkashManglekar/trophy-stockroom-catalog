@@ -33,3 +33,20 @@ describe("colour × size variants", () => {
     );
   });
 });
+
+import { normaliseSize, sizeLabel, sizeTag } from "@/lib/naming";
+describe("fractional inch sizes (medals)", () => {
+  it("keeps halves and quarters distinct", () => {
+    expect(normaliseSize("2.5", "in")).toBe("002.5");
+    expect(normaliseSize("2.75 inch", "in")).toBe("002.75");
+    expect(normaliseSize("3", "in")).toBe("003");
+    expect(normaliseSize("12in", "in")).toBe("012");
+    expect(normaliseSize("0.5", "in")).toBe("000.5");
+  });
+  it("labels and SKU tags read naturally", () => {
+    expect(sizeLabel("002.5", "in", [])).toBe("2.5in");
+    expect(sizeTag("002.5", "in", [])).toBe("2.5");
+    expect(sizeTag("000.5", "in", [])).toBe("0.5");
+    expect(sizeTag("012", "in", [])).toBe("12");
+  });
+});

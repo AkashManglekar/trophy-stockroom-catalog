@@ -15,7 +15,14 @@ export function normaliseSize(raw: string | number | null | undefined, unit: str
   if (unit === "size") return s.toUpperCase();
   const digits = s.replace(/[^0-9.]/g, "");
   const n = Number(digits);
-  return digits && Number.isFinite(n) ? pad3(Math.round(n)) : s.toUpperCase();
+  if (!digits || !Number.isFinite(n)) return s.toUpperCase();
+  // Whole sizes stay 3 digits (12 → "012"); fractions keep up to 2 decimals (2.5 → "002.5").
+  const r = Math.round(n * 100) / 100;
+  const whole = Math.floor(r);
+  const frac = String(Math.round((r - whole) * 100))
+    .padStart(2, "0")
+    .replace(/0+$/, "");
+  return frac ? `${pad3(whole)}.${frac}` : pad3(whole);
 }
 
 export function sizeLabel(size: string, unit: string, sizes: CodeItem[]): string {
@@ -32,7 +39,8 @@ export function sizeTag(size: string, unit: string, sizes: CodeItem[]): string {
     return (sizes.find((x) => x.code === size)?.name ?? size)
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "");
-  return size.replace(/^0+/, "") || "0";
+  const t = size.replace(/^0+/, "");
+  return t.startsWith(".") ? `0${t}` : t || "0";
 }
 
 /** Variant SKU: design code + size, plus finish only if that size already exists in another finish. */

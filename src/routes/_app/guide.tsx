@@ -159,11 +159,11 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
         </li>
         <li>
           <b>Medals</b> (and any type ticked “Colour variants” in Settings → Product types): one
-          product code per design, every size × colour is its own variant with its own stock and
-          price — e.g. TM-1001-50-GD, TM-1001-50-SV, TM-1001-50-BZ. On the bill, fill the first
-          colour, then “+ Another size / finish of this design” and change Finish to Silver, Bronze…
-          The product page shows a colour × size grid; the catalogue lets customers pick colour and
-          size.
+          product code per design, sized in inches (2, 2.5, 2.75…), every size × colour is its own
+          variant with its own stock and price — e.g. TM-1001-2.5-GD, TM-1001-2.5-SV,
+          TM-1001-2.5-BZ. On the bill, fill the first colour, then “+ Another size / finish of this
+          design” and change Finish to Silver, Bronze… The product page shows a colour × size grid;
+          the catalogue lets customers pick colour and size.
         </li>
         <li>
           <b>Design name</b> must be distinctive — customers see it. "Aurora", "Titan Cup" ✓ ·
