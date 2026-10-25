@@ -21,6 +21,7 @@ import { isArchivedVendor, vendorIssues } from "@/lib/gst";
 import { Card, CardTitle, Code, Empty, PageHead, Pill } from "@/components/kit";
 import { VendorForm, vendorRow, vendorValues, type VendorValues } from "@/components/VendorForm";
 import { Button } from "@/components/ui/button";
+import { VendorNotes, vendorFilePaths } from "@/components/VendorNotes";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/vendors")({
@@ -228,11 +229,13 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
       return;
     }
     setSureDel(false);
+    const files = await vendorFilePaths(v.id);
     const { error } = await supabase.rpc("delete_vendor", { p_vendor: v.id });
     if (error) {
       toast.error(error.message);
       return;
     }
+    if (files.length) await supabase.storage.from("media").remove(files);
     toast.success(`${v.code} deleted`);
     onClose();
     inv("vendors", "vendor_codes", "products", "reviews");
@@ -321,6 +324,7 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
         </div>
       )}
       <VendorBusiness v={v} />
+      <VendorNotes vendorId={v.id} vendorCode={v.code} />
       <details className="rounded-xl border p-3">
         <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
           Vendor details (Zoho fields)
@@ -380,8 +384,9 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
           </h4>
           <p className="text-xs text-muted-foreground">
             <b>Archive</b> hides the vendor from the list and new bills but keeps its bills,
-            payments, ratings and code map. <b>Delete</b> removes it for good — only for vendors
-            with no bills (e.g. added by mistake); its code map goes with it.
+            payments, ratings, notes, documents and code map. <b>Delete</b> removes it for good —
+            only for vendors with no bills (e.g. added by mistake); its code map, notes and
+            documents go with it.
           </p>
           <div className="flex flex-wrap gap-2">
             {canEdit && !archived && (

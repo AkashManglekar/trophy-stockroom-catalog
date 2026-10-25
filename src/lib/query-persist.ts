@@ -23,6 +23,7 @@ const KEEP = new Set([
   "submissions",
   "sales",
   "guide",
+  "vendor_notes",
 ]);
 /** True when the value comes back identical after JSON (no Set, Map, Date, class instances). */
 function plain(v: unknown, depth = 0): boolean {

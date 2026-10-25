@@ -191,6 +191,57 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_notes: {
+        Row: {
+          id: string
+          kind: string
+          title: string | null
+          body: string | null
+          url: string | null
+          file_path: string | null
+          file_name: string | null
+          mime: string | null
+          size_bytes: number | null
+          pinned: boolean
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          vendor_id: string
+        }
+        Insert: {
+          id?: string
+          kind?: string
+          title?: string | null
+          body?: string | null
+          url?: string | null
+          file_path?: string | null
+          file_name?: string | null
+          mime?: string | null
+          size_bytes?: number | null
+          pinned?: boolean
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          vendor_id?: string
+        }
+        Update: {
+          id?: string
+          kind?: string
+          title?: string | null
+          body?: string | null
+          url?: string | null
+          file_path?: string | null
+          file_name?: string | null
+          mime?: string | null
+          size_bytes?: number | null
+          pinned?: boolean
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          vendor_id?: string
+        }
+        Relationships: []
+      }
       vendor_reviews: {
         Row: {
           comment: string | null

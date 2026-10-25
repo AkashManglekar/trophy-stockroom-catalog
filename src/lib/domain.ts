@@ -14,6 +14,7 @@ export type Adjustment = Tables<"adjustments">;
 export type Submission = Tables<"bill_submissions">;
 export type BillPayment = Tables<"bill_payments">;
 export type VendorReview = Tables<"vendor_reviews">;
+export type VendorNote = Tables<"vendor_notes">;
 export type SaleLine = Tables<"sales_lines">;
 export type QuoteRequest = Tables<"quote_requests">;
 export const PAY_MODES = ["UPI", "NEFT / RTGS", "IMPS", "Cash", "Cheque", "Card", "Other"];

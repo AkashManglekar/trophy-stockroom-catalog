@@ -264,6 +264,11 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           outstanding; each vendor page shows total business, paid, owed and their rating.
         </li>
         <li>
+          <b>Vendor notes &amp; documents</b>: Vendors → open the vendor → Notes, links &amp;
+          documents. Keep their catalogue link, price lists, agreements and notes in one place
+          (files up to 25 MB, private to the team).
+        </li>
+        <li>
           After a delivery, <b>Rate this delivery</b> on the bill — quality, delivery and pricing —
           so vendor scorecards stay honest.
         </li>

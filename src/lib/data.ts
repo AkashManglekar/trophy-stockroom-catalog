@@ -14,6 +14,7 @@ import {
   type Submission,
   type BillPayment,
   type VendorReview,
+  type VendorNote,
   type SaleLine,
   type QuoteRequest,
   type Vendor,
@@ -154,6 +155,22 @@ export const useReviews = () =>
     queryFn: () =>
       all<VendorReview>(
         supabase.from("vendor_reviews").select("*").order("created_at", { ascending: false }),
+      ),
+  });
+/** Notes, links and documents kept on a vendor (newest first, pinned on top). */
+export const useVendorNotes = (vendorId: string | null) =>
+  useQuery({
+    queryKey: ["vendor_notes", vendorId],
+    enabled: !!vendorId,
+    staleTime: STALE,
+    queryFn: () =>
+      all<VendorNote>(
+        supabase
+          .from("vendor_notes")
+          .select("*")
+          .eq("vendor_id", vendorId!)
+          .order("pinned", { ascending: false })
+          .order("created_at", { ascending: false }),
       ),
   });
 /** Sales lines (Zoho invoices / credit notes) from the last `days` days. */
