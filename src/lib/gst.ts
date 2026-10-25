@@ -93,7 +93,17 @@ export const PAYMENT_TERMS: { label: string; days: number }[] = [
   { label: "Net 45", days: 45 },
   { label: "Net 60", days: 60 },
 ];
-export const VENDOR_STATUSES = ["Prospect", "Sample", "Approved", "Active", "Paused", "Exited"];
+export const VENDOR_STATUSES = [
+  "Prospect",
+  "Sample",
+  "Approved",
+  "Active",
+  "Paused",
+  "Exited",
+  "Archived",
+];
+/** Archived vendors are kept with their history but hidden from lists and new bills. */
+export const isArchivedVendor = (v: { status?: string | null }) => v.status === "Archived";
 
 export const GSTIN_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 export const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;

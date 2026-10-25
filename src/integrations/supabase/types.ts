@@ -1117,6 +1117,7 @@ export type Database = {
       size_tag: { Args: { p_size: string; p_unit: string }; Returns: string }
       clear_samples: { Args: never; Returns: string[] }
       delete_product: { Args: { p_product: string }; Returns: string[] }
+      delete_vendor: { Args: { p_vendor: string }; Returns: string }
       reject_bill: { Args: { p_id: string; p_note: string }; Returns: undefined }
       submit_bill: {
         Args: { p_payload: Json; p_draft: Json; p_meta: Json; p_replaces?: string }

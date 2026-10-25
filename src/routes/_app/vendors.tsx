@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { inr, type Vendor } from "@/lib/domain";
@@ -17,7 +17,7 @@ import {
 } from "@/lib/data";
 import { PAY_LABEL, PAY_TONE, billMoney, vendorBusiness } from "@/lib/finance";
 import { blankVendor } from "@/lib/draft";
-import { vendorIssues } from "@/lib/gst";
+import { isArchivedVendor, vendorIssues } from "@/lib/gst";
 import { Card, CardTitle, Code, Empty, PageHead, Pill } from "@/components/kit";
 import { VendorForm, vendorRow, vendorValues, type VendorValues } from "@/components/VendorForm";
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,11 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/vendors")({
   head: () => ({ meta: [{ title: "Vendors · Sportagon Stockroom" }] }),
-  validateSearch: (s: Record<string, unknown>): { sel?: string | undefined } => ({
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { sel?: string | undefined; archived?: boolean | undefined } => ({
     sel: typeof s["sel"] === "string" ? s["sel"] : undefined,
+    archived: s["archived"] === true || s["archived"] === "true" ? true : undefined,
   }),
   component: VendorsPage,
 });
@@ -42,12 +45,14 @@ function VendorsPage() {
   const biz = (id: string) =>
     vendorBusiness(id, bills.data ?? [], payments.data ?? [], reviews.data ?? []);
   const inv = useInvalidate();
-  const { sel } = Route.useSearch();
+  const { sel, archived: showArchived } = Route.useSearch();
   const nav = Route.useNavigate();
   const [form, setForm] = useState<VendorValues>(blankVendor());
   const [saving, setSaving] = useState(false);
-  const list = vendors.data ?? [];
-  const selected = sel ? list.find((v) => v.id === sel) : undefined;
+  const all = vendors.data ?? [];
+  const archivedCount = all.filter(isArchivedVendor).length;
+  const list = all.filter((v) => (showArchived ? isArchivedVendor(v) : !isArchivedVendor(v)));
+  const selected = sel ? all.find((v) => v.id === sel) : undefined;
   const ready = list.filter((v) => !vendorIssues(v as never).length).length;
   const lastBill = useMemo(() => {
     const m = new Map<string, string>();
@@ -91,11 +96,24 @@ function VendorsPage() {
         lede="Vendor master with every field Zoho needs. Each vendor's own item codes are remembered against your product codes."
       />
       <div className="flex flex-wrap gap-1.5">
-        <Pill>{list.length} vendors</Pill>
-        <Pill tone="ok">{ready} Zoho-ready</Pill>
-        {list.length - ready ? (
+        <Pill>
+          {list.length} {showArchived ? "archived" : "vendors"}
+        </Pill>
+        {!showArchived && <Pill tone="ok">{ready} Zoho-ready</Pill>}
+        {!showArchived && list.length - ready ? (
           <Pill tone="warn">{list.length - ready} missing details</Pill>
         ) : null}
+        {archivedCount > 0 && (
+          <button
+            onClick={() =>
+              nav({ search: (s) => ({ ...s, archived: showArchived ? undefined : true }) })
+            }
+          >
+            <Pill className="cursor-pointer underline-offset-2 hover:underline">
+              {showArchived ? "← Back to active vendors" : `${archivedCount} archived`}
+            </Pill>
+          </button>
+        )}
       </div>
       <div
         className={cn(
@@ -104,13 +122,15 @@ function VendorsPage() {
         )}
       >
         <div className="grid min-w-0 gap-2">
-          {!list.length && <Empty>No vendors yet.</Empty>}
+          {!list.length && (
+            <Empty>{showArchived ? "No archived vendors." : "No vendors yet."}</Empty>
+          )}
           {list.map((v) => {
             const iss = vendorIssues(v as never);
             return (
               <button
                 key={v.id}
-                onClick={() => nav({ search: { sel: v.id } })}
+                onClick={() => nav({ search: (s) => ({ ...s, sel: v.id }) })}
                 className={cn(
                   "card-lift grid min-w-0 gap-1 p-3 text-left",
                   selected?.id === v.id && "ring-2 ring-accent",
@@ -162,7 +182,7 @@ function VendorsPage() {
           <VendorPanel
             key={selected.id}
             v={selected}
-            onClose={() => nav({ search: { sel: undefined } })}
+            onClose={() => nav({ search: (s) => ({ ...s, sel: undefined }) })}
           />
         )}
       </div>
@@ -185,7 +205,38 @@ function VendorsPage() {
 }
 
 function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
-  const { canContribute } = useAuth();
+  const { canContribute, canEdit, isOwner } = useAuth();
+  const bills = useBills();
+  const [sureDel, setSureDel] = useState(false);
+  const billCount = (bills.data ?? []).filter((b) => b.vendor_id === v.id).length;
+  const archived = isArchivedVendor(v);
+  async function setArchived(on: boolean) {
+    const { error } = await supabase
+      .from("vendors")
+      .update({ status: on ? "Archived" : "Active", updated_at: new Date().toISOString() })
+      .eq("id", v.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(on ? `${v.code} archived` : `${v.code} restored`);
+    inv("vendors");
+  }
+  async function remove() {
+    if (!sureDel) {
+      setSureDel(true);
+      return;
+    }
+    setSureDel(false);
+    const { error } = await supabase.rpc("delete_vendor", { p_vendor: v.id });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`${v.code} deleted`);
+    onClose();
+    inv("vendors", "vendor_codes", "products", "reviews");
+  }
   const vcodes = useVendorCodes();
   const products = useProducts();
   const inv = useInvalidate();
@@ -254,6 +305,21 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
           <X className="hidden size-4 lg:block" />
         </Button>
       </div>
+      {archived && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2.5 text-sm">
+          <span>Archived — hidden from the vendor list and new bills. History is kept.</span>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setArchived(false)}
+            >
+              <ArchiveRestore className="size-4" /> Restore
+            </Button>
+          )}
+        </div>
+      )}
       <VendorBusiness v={v} />
       <details className="rounded-xl border p-3">
         <summary className="cursor-pointer text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
@@ -307,6 +373,47 @@ function VendorPanel({ v, onClose }: { v: Vendor; onClose: () => void }) {
           );
         })}
       </section>
+      {(canEdit || isOwner) && (
+        <section className="grid gap-2 rounded-xl border border-dashed p-3">
+          <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+            Archive or delete
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            <b>Archive</b> hides the vendor from the list and new bills but keeps its bills,
+            payments, ratings and code map. <b>Delete</b> removes it for good — only for vendors
+            with no bills (e.g. added by mistake); its code map goes with it.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {canEdit && !archived && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setArchived(true)}
+              >
+                <Archive className="size-4" /> Archive
+              </Button>
+            )}
+            {isOwner && (
+              <Button
+                size="sm"
+                variant={sureDel ? "destructive" : "ghost"}
+                className="rounded-full"
+                disabled={billCount > 0}
+                title={billCount ? `Has ${billCount} bill(s) — archive instead` : undefined}
+                onClick={remove}
+              >
+                <Trash2 className="size-4" />
+                {billCount
+                  ? `Delete — not possible, ${billCount} bill${billCount === 1 ? "" : "s"}`
+                  : sureDel
+                    ? `Yes, delete ${v.code}`
+                    : "Delete vendor"}
+              </Button>
+            )}
+          </div>
+        </section>
+      )}
     </aside>
   );
 }
@@ -375,7 +482,9 @@ function VendorBusiness({ v }: { v: Vendor }) {
                 <span className="text-xs text-muted-foreground">
                   {String(x.bill_date ?? x.created_at).slice(0, 10)}
                 </span>
-                <span className="min-w-0 flex-1 font-medium">{x.bill_no ?? "—"}</span>
+                <span className="wrap-any min-w-[4.5rem] flex-1 font-medium">
+                  {x.bill_no ?? "—"}
+                </span>
                 <span className="tabular-nums">{inr(m.total)}</span>
                 <Pill tone={PAY_TONE[m.status]}>
                   {PAY_LABEL[m.status]}

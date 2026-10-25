@@ -660,11 +660,13 @@ function ReceivePage() {
               onChange={(e) => upd((d) => ({ ...d, vendorId: e.target.value }))}
             >
               <option value="">{draft.type === "bill" ? "Select vendor…" : "No vendor"}</option>
-              {vend.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.code} · {v.display_name}
-                </option>
-              ))}
+              {vend
+                .filter((v) => v.status !== "Archived" || v.id === draft.vendorId)
+                .map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.code} · {v.display_name}
+                  </option>
+                ))}
               <option value="NEW">+ New vendor</option>
             </Select>
           </Field>
