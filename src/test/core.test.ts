@@ -326,3 +326,20 @@ describe("fixed MRP: tax changes, tag price stays", () => {
     expect(at5.rule).toBe("Fixed MRP");
   });
 });
+
+import { billTotalBeforeGst, totalCheck } from "@/lib/receive-plan";
+describe("bill total cross-check", () => {
+  // EAW bill: goods 16,000 + freight 600 = 16,600 before GST; + 5% GST 830 = 17,430
+  it("accepts the total typed after GST", () => {
+    expect(totalCheck(17430, 16600, 17430)).toEqual({ ok: true, diff: 0, basis: "incl. GST" });
+    expect(billTotalBeforeGst(17430, 16600, 17430)).toBe(16600);
+  });
+  it("accepts the total typed before GST", () => {
+    expect(totalCheck(16600, 16600, 17430)).toMatchObject({ ok: true, basis: "before GST" });
+    expect(billTotalBeforeGst(16600, 16600, 17430)).toBe(16600);
+  });
+  it("reports a real gap against the nearer total", () => {
+    expect(totalCheck(17930, 16600, 17430)).toEqual({ ok: false, diff: 500, basis: "incl. GST" });
+    expect(totalCheck(16100, 16600, 17430)).toEqual({ ok: false, diff: -500, basis: "before GST" });
+  });
+});

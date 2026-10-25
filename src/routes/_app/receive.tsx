@@ -60,6 +60,7 @@ import {
   type PlanCtx,
 } from "@/lib/receive-plan";
 import { normDesc } from "@/lib/naming";
+import { billTotalBeforeGst, totalCheck } from "@/lib/receive-plan";
 import { pricePayload } from "@/lib/pricing";
 import { GST_RATES, SUPPLY_LABEL, supplyTypeFor, vendorIssues } from "@/lib/gst";
 import { blobToDataUrl, shrinkImage } from "@/lib/photos";
@@ -476,7 +477,12 @@ function ReceivePage() {
         vendor_id: vendorId && vendorId !== "NEW" ? vendorId : null,
         bill_no: draft.billNo,
         bill_date: draft.billDate,
-        bill_total: num(draft.billTotal),
+        // Stored as the total before GST, whichever way it was typed.
+        bill_total: billTotalBeforeGst(
+          num(draft.billTotal),
+          sum.value + (costs?.charges ?? 0),
+          costs?.total,
+        ),
         charges:
           draft.type === "bill"
             ? (draft.charges ?? [])
@@ -566,11 +572,9 @@ function ReceivePage() {
               x.group === l.group && (plans[x.id]?.errors.length || plans[x.id]?.kind === "new"),
           )),
     );
-  const diff =
-    num(draft.billTotal) != null
-      ? Math.round(((num(draft.billTotal) as number) - sum.value - (costs?.charges ?? 0)) * 100) /
-        100
-      : null;
+  // The bill's total can be typed before or after GST — whichever is printed. It's checked against
+  // both: goods + charges, and goods + charges + GST.
+  const check = totalCheck(num(draft.billTotal), sum.value + (costs?.charges ?? 0), costs?.total);
 
   return (
     <>
@@ -687,7 +691,7 @@ function ReceivePage() {
             />
           </Field>
           {draft.type === "bill" ? (
-            <Field label="Bill total before GST ₹" hint="goods + charges, to cross-check">
+            <Field label="Bill total ₹" hint="as printed — before or after GST, to cross-check">
               <TextInput
                 inputMode="decimal"
                 placeholder="to cross-check"
@@ -971,12 +975,13 @@ function ReceivePage() {
               <span className="hidden sm:inline">
                 <b className="block text-base tabular-nums">{sum.new}</b>new codes
               </span>
-              {diff != null &&
-                (Math.abs(diff) <= 1 ? (
-                  <Pill tone="ok">matches bill total</Pill>
+              {check &&
+                (check.ok ? (
+                  <Pill tone="ok">matches bill total {check.basis}</Pill>
                 ) : (
                   <Pill tone="warn">
-                    {inr(Math.abs(diff))} {diff > 0 ? "less than" : "more than"} bill total
+                    lines are {inr(Math.abs(check.diff))} {check.diff > 0 ? "under" : "over"} the
+                    bill total {check.basis}
                   </Pill>
                 ))}
               {sum.warn ? <Pill tone="warn">{sum.warn} to check</Pill> : null}

@@ -383,3 +383,29 @@ export function summarise(d: Draft, plans: Record<string, LinePlan>) {
 }
 
 export { slug };
+
+/** Compares the typed bill total with the lines: before GST (goods + charges) or after GST. */
+export function totalCheck(
+  typed: number | null,
+  beforeGst: number,
+  afterGst: number | null | undefined,
+): { ok: boolean; diff: number; basis: "before GST" | "incl. GST" } | null {
+  if (typed == null) return null;
+  const r = (x: number) => Math.round(x * 100) / 100;
+  const dPre = r(typed - beforeGst);
+  const dPost = afterGst != null ? r(typed - afterGst) : null;
+  if (Math.abs(dPre) <= 1) return { ok: true, diff: dPre, basis: "before GST" };
+  if (dPost != null && Math.abs(dPost) <= 1) return { ok: true, diff: dPost, basis: "incl. GST" };
+  return dPost != null && Math.abs(dPost) < Math.abs(dPre)
+    ? { ok: false, diff: dPost, basis: "incl. GST" }
+    : { ok: false, diff: dPre, basis: "before GST" };
+}
+export function billTotalBeforeGst(
+  typed: number | null,
+  beforeGst: number,
+  afterGst: number | null | undefined,
+): number | null {
+  const c = totalCheck(typed, beforeGst, afterGst);
+  if (!c || typed == null) return typed;
+  return c.ok && c.basis === "incl. GST" ? Math.round(beforeGst * 100) / 100 : typed;
+}
