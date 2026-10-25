@@ -526,6 +526,12 @@ function TypesCard({ ref_, ro }: { ref_: RefData; ro: boolean }) {
               <th className="hidden p-2 sm:table-cell">Size</th>
               <th className="hidden p-2 sm:table-cell">HSN</th>
               <th className="p-2 text-right">GST</th>
+              <th
+                className="p-2 text-center"
+                title="Each colour is its own variant with its own code and stock (medals)"
+              >
+                Colour variants
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -548,6 +554,31 @@ function TypesCard({ ref_, ro }: { ref_: RefData; ro: boolean }) {
                 <td className="hidden p-2 sm:table-cell">{t.size_unit}</td>
                 <td className="hidden p-2 code-tag text-xs sm:table-cell">{t.hsn}</td>
                 <td className="p-2 text-right">{t.gst == null ? "5/18 rule" : `${t.gst}%`}</td>
+                <td className="p-2 text-center">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--primary)]"
+                    aria-label={`${t.name}: colours are separate variants`}
+                    checked={!!t.colour_variants}
+                    disabled={ro}
+                    onChange={async (e) => {
+                      const { error } = await supabase
+                        .from("types")
+                        .update({ colour_variants: e.target.checked })
+                        .eq("id", t.id);
+                      if (error) {
+                        toast.error(error.message);
+                        return;
+                      }
+                      toast.success(
+                        e.target.checked
+                          ? `${t.name}: each colour is now its own variant`
+                          : `${t.name}: colour no longer splits variants`,
+                      );
+                      inv("ref");
+                    }}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

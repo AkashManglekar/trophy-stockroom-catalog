@@ -230,7 +230,15 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
       serial[prefix] = no + 1;
       base = `${prefix}-${no}`;
     }
-    const sku = variantSku(base, size, unit, c.finish, ref.sizes, takenSkus);
+    const sku = variantSku(
+      base,
+      size,
+      unit,
+      c.finish,
+      ref.sizes,
+      takenSkus,
+      !!type.colour_variants,
+    );
     takenSkus.add(sku);
     if (familyMode === "new") {
       designMax[k] = designNo;

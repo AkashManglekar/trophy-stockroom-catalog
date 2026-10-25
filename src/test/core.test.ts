@@ -43,6 +43,7 @@ const CUP: ProductType = {
   code: "CUP",
   name: "Cup Trophy",
   letter: "C",
+  colour_variants: false,
   size_unit: "in",
   uom: "pcs",
   hsn: "83062920",

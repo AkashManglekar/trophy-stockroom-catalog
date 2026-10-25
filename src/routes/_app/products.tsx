@@ -50,6 +50,8 @@ import { pricePayload } from "@/lib/pricing";
 import { removePhoto, setMainPhoto, withThumbs } from "@/lib/photos";
 import { Card, Code, Empty, Field, PageHead, Pill, Select, TextInput } from "@/components/kit";
 import { PhotoButtons, Thumb } from "@/components/photos";
+import { BrandMark } from "@/components/BrandMark";
+import { swatchOf } from "@/lib/variants";
 import { BulkAdjust, StockAdjustForm } from "@/components/StockAdjust";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -172,6 +174,7 @@ function ProductsPage() {
             .filter(Boolean),
           sample: items.some((x) => x.p.is_sample),
           internal: !!fam?.internal,
+          byColour: hasManyFinishes(items),
         };
       })
       .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
@@ -345,12 +348,15 @@ function ProductsPage() {
                     )}
                   >
                     {url ? (
-                      <img
-                        src={url}
-                        alt=""
-                        loading="lazy"
-                        className="aspect-square w-full bg-white object-contain"
-                      />
+                      <span className="relative block">
+                        <img
+                          src={url}
+                          alt=""
+                          loading="lazy"
+                          className="aspect-square w-full bg-white object-contain"
+                        />
+                        <BrandMark size="xs" />
+                      </span>
                     ) : (
                       <span className="grid aspect-square place-items-center bg-muted text-xs text-muted-foreground">
                         <span className="code-tag">{g.code}</span>no photo
@@ -365,7 +371,7 @@ function ProductsPage() {
                       </span>
                       {g.items.length > 1 && (
                         <Pill tone="info" className="w-fit">
-                          {g.items.length} sizes
+                          {g.items.length} {g.byColour ? "variants" : "sizes"}
                         </Pill>
                       )}
                       {g.attn.includes("name") && (
@@ -425,7 +431,7 @@ function ProductsPage() {
                           {g.sizes[0] || "—"}
                           {g.items.length > 1 && (
                             <Pill tone="info" className="ml-1.5">
-                              {g.items.length} sizes
+                              {g.items.length} {g.byColour ? "variants" : "sizes"}
                             </Pill>
                           )}
                         </td>
@@ -703,7 +709,15 @@ function ProductPanel({
           </Button>
         </div>
       </div>
-      {siblings.length > 1 && (
+      {siblings.length > 1 && (manyFinishes || t?.colour_variants) ? (
+        <VariantMatrix
+          items={siblings}
+          current={p.id}
+          ref_={ref_}
+          sizeUnit={t?.size_unit ?? "none"}
+          onPick={onPick}
+        />
+      ) : siblings.length > 1 ? (
         <div className="grid gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Sizes · {siblings.length}
@@ -730,7 +744,7 @@ function ProductPanel({
             ))}
           </div>
         </div>
-      )}
+      ) : null}
       {p.status === "Archived" && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2.5 text-sm">
           <span>Archived — hidden from the product list and the public catalogue.</span>
@@ -763,12 +777,15 @@ function ProductPanel({
       )}
 
       {main && urls[main.path ?? ""] ? (
-        <img
-          src={urls[main.path ?? ""]}
-          alt={p.friendly_name}
-          className="aspect-[4/3] w-full cursor-zoom-in rounded-xl border bg-white object-contain"
-          onClick={() => setBig(urls[main.path ?? ""] ?? null)}
-        />
+        <div className="relative">
+          <img
+            src={urls[main.path ?? ""]}
+            alt={p.friendly_name}
+            className="aspect-[4/3] w-full cursor-zoom-in rounded-xl border bg-white object-contain"
+            onClick={() => setBig(urls[main.path ?? ""] ?? null)}
+          />
+          <BrandMark size="sm" />
+        </div>
       ) : (
         <div className="grid aspect-[4/3] place-items-center rounded-xl border bg-muted p-4 text-center text-sm text-muted-foreground">
           <span>
@@ -1190,7 +1207,7 @@ function CatalogueVisibility({
     <div className="grid gap-2 rounded-xl border px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Public catalogue{sizes > 1 ? ` · all ${sizes} sizes` : ""}
+          Public catalogue{sizes > 1 ? ` · all ${sizes} variants` : ""}
         </span>
         <div className="inline-flex gap-1 rounded-full border bg-muted p-1" role="radiogroup">
           {[
@@ -1214,6 +1231,96 @@ function CatalogueVisibility({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">{note}</p>
+    </div>
+  );
+}
+
+/** Colour × size grid for designs with colour variants (medals): each cell is its own SKU and stock. */
+function VariantMatrix({
+  items,
+  current,
+  ref_,
+  sizeUnit,
+  onPick,
+}: {
+  items: Product[];
+  current: string;
+  ref_: RefData;
+  sizeUnit: string;
+  onPick: (id: string) => void;
+}) {
+  const sizeOf = (x: Product) => sizeLabel(x.size, sizeUnit as never, ref_.sizes) || "One size";
+  const colourOf = (x: Product) => ref_.finishes.find((f) => f.code === x.finish)?.name ?? x.finish;
+  const sizes = [...new Map(items.map((x) => [x.size, sizeOf(x)])).entries()].sort((a, b) =>
+    a[0].localeCompare(b[0], undefined, { numeric: true }),
+  );
+  const colours = [...new Map(items.map((x) => [x.finish, colourOf(x)])).entries()];
+  const total = items.reduce((a, x) => a + x.stock, 0);
+  return (
+    <div className="grid gap-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Variants · {items.length} · {total} in stock
+      </span>
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-xs tabular-nums">
+          <thead className="bg-muted text-[10.5px] uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="p-2 text-left">Colour</th>
+              {sizes.map(([k, l]) => (
+                <th key={k} className="p-2 text-left">
+                  {l}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {colours.map(([fc, name]) => (
+              <tr key={fc} className="border-t">
+                <th className="whitespace-nowrap p-2 text-left font-semibold">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="size-3.5 rounded-full ring-1 ring-black/15"
+                      style={{ background: swatchOf(name) }}
+                    />
+                    {name}
+                  </span>
+                </th>
+                {sizes.map(([sk]) => {
+                  const x = items.find((i) => i.finish === fc && i.size === sk);
+                  if (!x)
+                    return (
+                      <td key={sk} className="p-2 text-muted-foreground">
+                        —
+                      </td>
+                    );
+                  const on = x.id === current;
+                  return (
+                    <td key={sk} className="p-1">
+                      <button
+                        onClick={() => onPick(x.id)}
+                        aria-pressed={on}
+                        title={x.code}
+                        className={cn(
+                          "grid w-full min-w-16 rounded-lg border px-2 py-1 text-left",
+                          on
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "bg-card hover:border-primary",
+                          !on && x.stock <= 0 && "text-muted-foreground",
+                        )}
+                      >
+                        <b className="text-[12.5px]">{x.stock} pcs</b>
+                        <span className={on ? "opacity-85" : "text-muted-foreground"}>
+                          {inr(x.mrp)}
+                        </span>
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

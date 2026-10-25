@@ -1,7 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { stripTax } from "@/lib/naming";
 
-export type CatalogueVariant = { label: string; price: number; sku: string };
+export type CatalogueVariant = {
+  /** Size and colour together, e.g. "50mm Gold" (what goes on a quote). */
+  label: string;
+  size: string;
+  /** Colour/finish name when the design comes in several (medals: Gold, Silver, Bronze). */
+  colour: string;
+  /** This variant's own main photo, when it has one. */
+  photo: string | null;
+  price: number;
+  sku: string;
+};
 export type CatalogueItem = {
   /** Design code, shared by all sizes. */
   code: string;
@@ -35,8 +45,11 @@ export const getCatalogue = createServerFn({ method: "GET" }).handler(
     }
     const out: CatalogueData = {
       items: (data ?? []).map((r) => {
-        const variants = ((r.variants as CatalogueVariant[] | null) ?? []).map((v) => ({
+        const variants = ((r.variants as Partial<CatalogueVariant>[] | null) ?? []).map((v) => ({
           label: String(v.label ?? ""),
+          size: String(v.size ?? v.label ?? ""),
+          colour: String(v.colour ?? ""),
+          photo: v.photo ? `/media/${v.photo}` : null,
           price: Number(v.price),
           sku: String(v.sku ?? ""),
         }));

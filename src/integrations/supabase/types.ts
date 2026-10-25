@@ -822,6 +822,7 @@ export type Database = {
       types: {
         Row: {
           code: string
+          colour_variants: boolean
           div: string
           gst: number | null
           hsn: string | null
@@ -835,6 +836,7 @@ export type Database = {
         }
         Insert: {
           code: string
+          colour_variants?: boolean
           div: string
           gst?: number | null
           hsn?: string | null
@@ -848,6 +850,7 @@ export type Database = {
         }
         Update: {
           code?: string
+          colour_variants?: boolean
           div?: string
           gst?: number | null
           hsn?: string | null

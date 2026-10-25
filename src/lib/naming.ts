@@ -43,9 +43,12 @@ export function variantSku(
   finish: string,
   sizes: CodeItem[],
   taken: Set<string>,
+  /** Type keeps each colour as its own variant (medals): the colour is always in the SKU. */
+  byColour = false,
 ): string {
   const t = sizeTag(size, unit, sizes);
   const v = t ? `${base}-${t}` : base;
+  if (byColour && finish && finish !== "NA") return `${v}-${finish}`;
   return taken.has(v) ? `${v}-${finish || "NA"}` : v;
 }
 

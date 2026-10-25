@@ -15,6 +15,8 @@ import type { CatalogueData, CatalogueItem } from "@/lib/catalogue.functions";
 import { cn } from "@/lib/utils";
 import { QuoteCart, useQuoteCart } from "@/components/QuoteCart";
 import { LOGO_BLUE, LOGO_MARK, LOGO_WHITE } from "@/lib/domain";
+import { BrandMark } from "@/components/BrandMark";
+import { swatchOf, variantAxes } from "@/lib/variants";
 
 const SITE = "https://catalogue.sportagon.in";
 const PHONE = "+91 72760 88888";
@@ -259,6 +261,13 @@ function ItemCard({
   const inCart = v ? (cart.lines.find((l) => l.sku === v.sku)?.qty ?? 0) : 0;
   const step = (d: number) =>
     track.current?.scrollBy({ left: d * track.current.clientWidth, behavior: "smooth" });
+  // Picking a colour or size shows that variant's own photo when it has one.
+  const pick = (i: number) => {
+    setSize(i);
+    const at = photoIndex(it, i);
+    const t = track.current;
+    if (at >= 0 && t) t.scrollTo({ left: at * t.clientWidth, behavior: "smooth" });
+  };
   return (
     <article className="card-lift grid min-w-0 content-start overflow-hidden">
       {it.photos.length ? (
@@ -286,6 +295,7 @@ function ItemCard({
               />
             ))}
           </div>
+          <BrandMark size="sm" />
           {it.photos.length > 1 && (
             <>
               <span className="pointer-events-none absolute right-2 top-2 rounded-full bg-[#0B1B3F]/75 px-2 py-0.5 text-[11px] font-bold text-white">
@@ -335,7 +345,7 @@ function ItemCard({
           </span>
         </div>
         <h3 className="wrap-any text-[14.5px] font-bold leading-snug sm:text-base">{it.name}</h3>
-        <SizePicker it={it} sel={size} onSel={setSize} />
+        <SizePicker it={it} sel={size} onSel={pick} />
         {it.description && (
           <p className="wrap-any text-[12.5px] text-muted-foreground sm:text-[13.5px]">
             {it.description}
@@ -355,7 +365,7 @@ function ItemCard({
             )}
           >
             <Plus className="size-3.5" />
-            {inCart ? `${inCart} in quote · add more` : "Add to quote"}
+            {inCart ? `${inCart} in quote · add` : "Add to quote"}
           </button>
         )}
       </div>
@@ -364,6 +374,10 @@ function ItemCard({
 }
 
 const priceOf = (it: CatalogueItem, i: number) => it.variants[i]?.price ?? it.price;
+const photoIndex = (it: CatalogueItem, i: number) => {
+  const p = it.variants[i]?.photo;
+  return p ? it.photos.indexOf(p) : -1;
+};
 
 /** Shows the chosen size; other sizes stay folded away until the customer opens the picker. */
 function SizePicker({
@@ -381,6 +395,9 @@ function SizePicker({
   const vs = it.variants;
   const cur = vs[sel];
   if (!vs.length || (vs.length === 1 && !cur?.label)) return null;
+  const ax = variantAxes(vs);
+  if (ax.colours.length > 1)
+    return <ColourSizePicker it={it} sel={sel} onSel={onSel} dark={dark} />;
   if (vs.length === 1)
     return (
       <span className={cn("text-[12.5px]", dark ? "opacity-85" : "text-muted-foreground")}>
@@ -428,6 +445,90 @@ function SizePicker({
               {v.label}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Two choices for designs that come in several colours (medals): colour swatches and sizes. */
+function ColourSizePicker({
+  it,
+  sel,
+  onSel,
+  dark,
+}: {
+  it: CatalogueItem;
+  sel: number;
+  onSel: (i: number) => void;
+  dark?: boolean | undefined;
+}) {
+  const vs = it.variants;
+  const ax = variantAxes(vs);
+  const cur = vs[sel] ?? vs[0]!;
+  const chip = (on: boolean, off: boolean) =>
+    cn(
+      "rounded-full border px-2.5 py-0.5 text-[12px] font-semibold",
+      on
+        ? dark
+          ? "border-white bg-white text-[#0B1B3F]"
+          : "border-primary bg-primary text-primary-foreground"
+        : dark
+          ? "border-white/30 text-white"
+          : "bg-card hover:border-primary",
+      off && "opacity-40 line-through",
+    );
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Colour">
+        {ax.colours.map((c) => {
+          const on = cur.colour === c;
+          return (
+            <button
+              key={c}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              title={c}
+              onClick={() => onSel(ax.choose(sel, { colour: c }))}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold",
+                on
+                  ? dark
+                    ? "border-white bg-white/15 text-white"
+                    : "border-primary text-primary ring-1 ring-primary"
+                  : dark
+                    ? "border-white/30 text-white"
+                    : "bg-card hover:border-primary",
+              )}
+            >
+              <span
+                className="size-4 rounded-full ring-1 ring-black/15"
+                style={{ background: swatchOf(c) }}
+              />
+              {c}
+            </button>
+          );
+        })}
+      </div>
+      {ax.sizes.length > 1 && (
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Size">
+          {ax.sizes.map((s) => {
+            const exists = ax.find(s, cur.colour) >= 0;
+            return (
+              <button
+                key={s || "one"}
+                type="button"
+                role="radio"
+                aria-checked={cur.size === s}
+                title={exists ? s : `${s} not available in ${cur.colour}`}
+                onClick={() => onSel(ax.choose(sel, { size: s }))}
+                className={chip(cur.size === s, !exists)}
+              >
+                {s || "One size"}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -512,6 +613,7 @@ function Lightbox({
             />
           ))}
         </div>
+        <BrandMark size="md" className="bottom-3 right-3" />
         {item.photos.length > 1 && (
           <>
             <button
@@ -540,7 +642,17 @@ function Lightbox({
             <span className="code-tag mr-2 text-xs opacity-80">{item.code}</span>
             {item.name}
           </span>
-          <SizePicker it={item} sel={size} onSel={setSize} dark />
+          <SizePicker
+            it={item}
+            sel={size}
+            onSel={(k) => {
+              setSize(k);
+              const at = photoIndex(item, k);
+              const t = track.current;
+              if (at >= 0 && t) t.scrollTo({ left: at * t.clientWidth, behavior: "smooth" });
+            }}
+            dark
+          />
         </span>
         <span className="whitespace-nowrap text-lg font-extrabold">{inr(priceOf(item, size))}</span>
       </div>
