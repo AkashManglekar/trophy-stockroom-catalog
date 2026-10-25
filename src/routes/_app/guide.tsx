@@ -323,6 +323,10 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           Selling price = landed × band multiplier: under ₹1,000 ×2.5, ₹1,000–₹2,000 ×2, ₹2,001+
           ×1.5 (Settings).
         </li>
+        <li>
+          Medals (and any type added under Settings → Price bands by product type) use their own
+          bands instead of the main ones.
+        </li>
         <li>Price on the tag = selling + GST.</li>
         <li>
           One item needs a different price? Products → item → Pricing → custom multiplier, margin or

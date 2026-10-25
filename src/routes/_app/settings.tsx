@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Download, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { inr, num, type AppSettings, type Division, type RefData } from "@/lib/domain";
+import { inr, num, type AppSettings, type Band, type Division, type RefData } from "@/lib/domain";
 import {
   errMsg,
   repriceProducts,
@@ -13,7 +13,7 @@ import {
   useProducts,
   useRefData,
 } from "@/lib/data";
-import { sortedBands } from "@/lib/pricing";
+import { sortedBands, typeBandKey } from "@/lib/pricing";
 import { publicPrefix } from "@/lib/naming";
 import {
   Card,
@@ -64,6 +64,7 @@ function SettingsPage() {
       {isOwner && <TeamManager />}
       <CompanyGst ref_={ref.data} ro={!canEdit} />
       <PriceRule ref_={ref.data} ro={!canEdit} />
+      <TypeBands ref_={ref.data} ro={!canEdit} />
       <DivisionTable ref_={ref.data} ro={!canEdit} />
       <CatalogueSettings ref_={ref.data} ro={!canEdit} />
       <TypesCard ref_={ref.data} ro={!canEdit} />
@@ -128,28 +129,6 @@ function PriceRule({ ref_, ro }: { ref_: RefData; ro: boolean }) {
       toast.error(errMsg(e));
     }
   }
-  function setBand(i: number, k: "from" | "mult", raw: string) {
-    const v = num(raw);
-    if (v == null || v < 0) {
-      toast.error("Enter a number");
-      return;
-    }
-    if (k === "mult" && v <= 1) {
-      toast.error("Multiplier must be more than 1");
-      return;
-    }
-    const next = bands.map((b) => ({ ...b }));
-    const prev = next[i - 1],
-      after = next[i + 1],
-      cur = next[i];
-    if (!cur) return;
-    if (k === "from" && ((prev && v <= prev.from) || (after && v >= after.from))) {
-      toast.error("Each band must start above the previous one and below the next");
-      return;
-    }
-    cur[k] = v;
-    save({ ...s, bands: next }, "Pricing updated");
-  }
   return (
     <Card>
       <CardTitle>Selling price rule</CardTitle>
@@ -157,85 +136,12 @@ function PriceRule({ ref_, ro }: { ref_: RefData; ro: boolean }) {
         Selling price = landed cost × the multiplier for its cost band, rounded up to the division's
         rounding. Landed cost = unit cost + freight % + packaging.
       </p>
-      <div className="grid gap-3">
-        {bands.map((b, i) => {
-          const nx = bands[i + 1];
-          const eg = nx ? Math.max(b.from, Math.min(nx.from - 1, b.from + 250)) : b.from + 500;
-          return (
-            <div key={i} className="grid gap-2 rounded-xl border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <strong className="text-sm">
-                  {nx ? `${inr(b.from)} – ${inr(nx.from - 0.01)}` : `${inr(b.from)} and above`}
-                </strong>
-                {i > 0 && !ro && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="rounded-full"
-                    aria-label="Remove band"
-                    onClick={() =>
-                      save({ ...s, bands: bands.filter((_, j) => j !== i) }, "Band removed")
-                    }
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[140px_140px_1fr]">
-                <Field label="Starts at ₹">
-                  <TextInput
-                    inputMode="decimal"
-                    defaultValue={b.from}
-                    disabled={ro || i === 0}
-                    onBlur={(e) =>
-                      Number(e.target.value) !== b.from && setBand(i, "from", e.target.value)
-                    }
-                  />
-                </Field>
-                <Field label="Multiplier ×">
-                  <TextInput
-                    inputMode="decimal"
-                    defaultValue={b.mult}
-                    disabled={ro}
-                    onBlur={(e) =>
-                      Number(e.target.value) !== b.mult && setBand(i, "mult", e.target.value)
-                    }
-                  />
-                </Field>
-                <span className="col-span-2 pb-2 text-xs text-muted-foreground sm:col-span-1">
-                  e.g. landed {inr(eg)} → {s.basis === "mrp" ? "price" : "sell"}{" "}
-                  {inr(Math.ceil((eg * b.mult) / 10) * 10)}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {!ro && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-fit rounded-full"
-          onClick={() => {
-            const last = bands[bands.length - 1] ?? { from: 1000, mult: 2 };
-            save(
-              {
-                ...s,
-                bands: [
-                  ...bands,
-                  {
-                    from: Math.round(last.from * 2) || 1000,
-                    mult: Math.max(1.1, Math.round((last.mult - 0.25) * 100) / 100),
-                  },
-                ],
-              },
-              "Band added",
-            );
-          }}
-        >
-          <Plus className="size-4" /> Add cost band
-        </Button>
-      )}
+      <BandEditor
+        bands={bands}
+        ro={ro}
+        basis={s.basis}
+        onSave={(next, msg) => save({ ...s, bands: next }, msg)}
+      />
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-semibold">Multiplier gives</span>
         <div className="inline-flex gap-1 rounded-full border bg-muted p-1">
@@ -799,6 +705,233 @@ function DataCard({ ro }: { ro: boolean }) {
           </span>
           <Button variant="outline" className="rounded-full" onClick={clearSamples}>
             {confirm ? "Click again to delete sample data" : "Clear sample data"}
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Edits one list of cost bands (main bands, or a product type's own). */
+function BandEditor({
+  bands: raw,
+  ro,
+  basis,
+  onSave,
+}: {
+  bands: Band[];
+  ro: boolean;
+  basis: AppSettings["basis"];
+  onSave: (next: Band[], msg: string) => void;
+}) {
+  const bands = sortedBands(raw);
+  function setBand(i: number, k: "from" | "mult", text: string) {
+    const v = num(text);
+    if (v == null || v < 0) {
+      toast.error("Enter a number");
+      return;
+    }
+    if (k === "mult" && v <= 1) {
+      toast.error("Multiplier must be more than 1");
+      return;
+    }
+    const next = bands.map((b) => ({ ...b }));
+    const prev = next[i - 1],
+      after = next[i + 1],
+      cur = next[i];
+    if (!cur) return;
+    if (k === "from" && ((prev && v <= prev.from) || (after && v >= after.from))) {
+      toast.error("Each band must start above the previous one and below the next");
+      return;
+    }
+    cur[k] = v;
+    onSave(next, "Pricing updated");
+  }
+  return (
+    <div className="grid gap-3">
+      {bands.map((b, i) => {
+        const nx = bands[i + 1];
+        const eg = nx ? Math.max(b.from, Math.min(nx.from - 1, b.from + 250)) : b.from + 500;
+        return (
+          <div key={`${i}-${b.from}-${b.mult}`} className="grid gap-2 rounded-xl border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-sm">
+                {nx ? `${inr(b.from)} – ${inr(nx.from - 0.01)}` : `${inr(b.from)} and above`}
+              </strong>
+              {i > 0 && !ro && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="rounded-full"
+                  aria-label="Remove band"
+                  onClick={() =>
+                    onSave(
+                      bands.filter((_, j) => j !== i),
+                      "Band removed",
+                    )
+                  }
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-[140px_140px_1fr]">
+              <Field label="Starts at ₹">
+                <TextInput
+                  inputMode="decimal"
+                  defaultValue={b.from}
+                  disabled={ro || i === 0}
+                  onBlur={(e) =>
+                    Number(e.target.value) !== b.from && setBand(i, "from", e.target.value)
+                  }
+                />
+              </Field>
+              <Field label="Multiplier ×">
+                <TextInput
+                  inputMode="decimal"
+                  defaultValue={b.mult}
+                  disabled={ro}
+                  onBlur={(e) =>
+                    Number(e.target.value) !== b.mult && setBand(i, "mult", e.target.value)
+                  }
+                />
+              </Field>
+              <span className="col-span-2 pb-2 text-xs text-muted-foreground sm:col-span-1">
+                e.g. landed {inr(eg)} → {basis === "mrp" ? "price" : "sell"}{" "}
+                {inr(Math.ceil((eg * b.mult) / 10) * 10)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      {!ro && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-fit rounded-full"
+          onClick={() => {
+            const last = bands[bands.length - 1] ?? { from: 1000, mult: 2 };
+            onSave(
+              [
+                ...bands,
+                {
+                  from: Math.round(last.from * 2) || 1000,
+                  mult: Math.max(1.1, Math.round((last.mult - 0.25) * 100) / 100),
+                },
+              ],
+              "Band added",
+            );
+          }}
+        >
+          <Plus className="size-4" /> Add cost band
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Product types priced on their own bands (e.g. medals), instead of the main bands. */
+function TypeBands({ ref_, ro }: { ref_: RefData; ro: boolean }) {
+  const s = ref_.settings;
+  const inv = useInvalidate();
+  const reprice = useReprice();
+  const [pick, setPick] = useState("");
+  async function save(next: AppSettings, msg: string) {
+    try {
+      await saveSettings(next);
+      const n = await reprice({ ...ref_, settings: next });
+      await inv("ref");
+      toast.success(`${msg}${n ? ` — ${n} product${n === 1 ? "" : "s"} re-priced` : ""}`);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  }
+  const sets = Object.entries(s.type_bands ?? {});
+  const typeOf = (key: string) => ref_.types.find((t) => typeBandKey(t) === key);
+  const free = ref_.types.filter((t) => !t.is_service && !s.type_bands?.[typeBandKey(t)]);
+  return (
+    <Card>
+      <CardTitle>Price bands by product type</CardTitle>
+      <p className="text-sm text-muted-foreground">
+        Some products are priced differently — medals, for example, cost little and carry a higher
+        multiplier. A type listed here uses its own bands instead of the main ones above. Rounding,
+        floor and bulk prices still follow the division.
+      </p>
+      {sets.map(([key, bands]) => {
+        const t = typeOf(key);
+        const d = ref_.divisions.find((x) => x.code === t?.div);
+        return (
+          <div key={key} className="grid gap-3 rounded-xl border bg-muted/30 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <strong>
+                {t?.name ?? key}{" "}
+                <span className="text-xs font-normal text-muted-foreground">
+                  {d?.name ?? t?.div}
+                </span>
+              </strong>
+              {!ro && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-full"
+                  onClick={() => {
+                    const rest = { ...(s.type_bands ?? {}) };
+                    delete rest[key];
+                    save({ ...s, type_bands: rest }, `${t?.name ?? key} back on the main bands`);
+                  }}
+                >
+                  <Trash2 className="size-4" /> Use main bands
+                </Button>
+              )}
+            </div>
+            <BandEditor
+              bands={bands}
+              ro={ro}
+              basis={s.basis}
+              onSave={(next, msg) =>
+                save(
+                  { ...s, type_bands: { ...(s.type_bands ?? {}), [key]: next } },
+                  `${t?.name}: ${msg.toLowerCase()}`,
+                )
+              }
+            />
+          </div>
+        );
+      })}
+      {!sets.length && (
+        <p className="text-sm text-muted-foreground">Every type uses the main bands.</p>
+      )}
+      {!ro && (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Give a type its own bands">
+            <Select value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">—</option>
+              {free.map((t) => (
+                <option key={t.id} value={typeBandKey(t)}>
+                  {t.name} ({t.div})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button
+            size="sm"
+            className="rounded-full"
+            disabled={!pick}
+            onClick={() => {
+              save(
+                {
+                  ...s,
+                  type_bands: {
+                    ...(s.type_bands ?? {}),
+                    [pick]: sortedBands(s.bands).map((b) => ({ ...b })),
+                  },
+                },
+                `${typeOf(pick)?.name} now has its own bands — set the multipliers`,
+              );
+              setPick("");
+            }}
+          >
+            <Plus className="size-4" /> Add
           </Button>
         </div>
       )}

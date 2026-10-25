@@ -38,6 +38,8 @@ export const ROLE_INFO: Record<Exclude<Role, "owner">, { label: string; does: st
 export type Band = { from: number; mult: number };
 export type AppSettings = {
   bands: Band[];
+  /** Price bands for particular product types ("DIV:TYPE", e.g. "TR:MED"), replacing `bands`. */
+  type_bands: Record<string, Band[]>;
   basis: "pre_gst" | "mrp";
   edge_protection: boolean;
   apparel_gst: { threshold: number; low: number; high: number };
@@ -64,6 +66,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     { from: 1000, mult: 2 },
     { from: 2001, mult: 1.5 },
   ],
+  type_bands: {},
   basis: "pre_gst",
   edge_protection: false,
   apparel_gst: { threshold: 2500, low: 5, high: 18 },
@@ -79,6 +82,12 @@ export function normaliseSettings(raw: unknown): AppSettings {
     ...DEFAULT_SETTINGS,
     ...d,
     bands: Array.isArray(d.bands) && d.bands.length ? d.bands : DEFAULT_SETTINGS.bands,
+    type_bands:
+      d.type_bands && typeof d.type_bands === "object"
+        ? Object.fromEntries(
+            Object.entries(d.type_bands).filter(([, v]) => Array.isArray(v) && v.length),
+          )
+        : {},
     apparel_gst: { ...DEFAULT_SETTINGS.apparel_gst, ...(d.apparel_gst ?? {}) },
     catalogue_divisions: Array.isArray(d.catalogue_divisions) ? d.catalogue_divisions : ["TR"],
     zoho_templates: d.zoho_templates ?? {},

@@ -250,3 +250,38 @@ describe("GST type per bill", () => {
     expect(supplyTypeFor({}, "MH")).toBeNull();
   });
 });
+
+describe("price bands by product type", () => {
+  const MED: ProductType = { ...CUP, id: "m", code: "MED", name: "Medal", letter: "M" };
+  const medalBands = {
+    "TR:MED": [
+      { from: 0, mult: 4 },
+      { from: 100, mult: 3 },
+    ],
+  };
+  it("medals use their own bands, other types keep the main ones", () => {
+    const S2 = { ...S, type_bands: medalBands };
+    // landed = 40 × 1.05 + 20 packaging = 62 → ×4 = 248 → rounded up to 250
+    const m = computePrice({ unitCost: 40, division: TR, type: MED, settings: S2 });
+    expect(m.landed).toBe(62);
+    expect(m.selling).toBe(250);
+    expect(m.rule).toBe("Medal band ×4");
+    const m2 = computePrice({ unitCost: 100, division: TR, type: MED, settings: S2 });
+    expect(m2.rule).toBe("Medal band ×3");
+    const cup = computePrice({ unitCost: 420, division: TR, type: CUP, settings: S2 });
+    expect(cup.rule).toBe("Band ×2.5");
+  });
+  it("a custom price on the product still wins over type bands", () => {
+    const S2 = { ...S, type_bands: medalBands };
+    expect(
+      computePrice({
+        unitCost: 40,
+        division: TR,
+        type: MED,
+        settings: S2,
+        mode: "fixed",
+        value: 199,
+      }).selling,
+    ).toBe(199);
+  });
+});

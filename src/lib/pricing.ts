@@ -33,6 +33,17 @@ export function sortedBands(bands: Band[]): Band[] {
     .sort((a, b) => a.from - b.from);
 }
 
+export const typeBandKey = (t: Pick<ProductType, "div" | "code">) => `${t.div}:${t.code}`;
+
+/** The bands that price this type: its own set when it has one, else the main bands. */
+export function bandsFor(
+  s: Pick<AppSettings, "bands" | "type_bands">,
+  t: Pick<ProductType, "div" | "code">,
+): { bands: Band[]; own: boolean } {
+  const own = s.type_bands?.[typeBandKey(t)];
+  return own?.length ? { bands: own, own: true } : { bands: s.bands, own: false };
+}
+
 export function bandFor(landed: number, bands: Band[]): Band | null {
   const bs = sortedBands(bands);
   let hit: Band | null = null;
@@ -85,17 +96,19 @@ export function computePrice(p: PriceInput): PriceResult {
       margin = value / 100;
       rule = `Custom margin ${value}%`;
     } else if (d.pricing_mode !== "margin") {
-      const band = bandFor(landed, s.bands);
+      const set = bandsFor(s, t);
+      const band = bandFor(landed, set.bands);
       if (band) {
         mult = band.mult;
-        rule = `Band ×${band.mult}`;
+        const label = set.own ? `${t.name} band` : "Band";
+        rule = `${label} ×${band.mult}`;
         if (s.edge_protection) {
-          const bs = sortedBands(s.bands);
+          const bs = sortedBands(set.bands);
           const i = bs.indexOf(band);
           const prev = i > 0 ? bs[i - 1] : null;
           if (prev && band.from * prev.mult > landed * band.mult) {
             mult = r2((band.from * prev.mult) / landed);
-            rule = `Band ×${band.mult} (edge-protected)`;
+            rule = `${label} ×${band.mult} (edge-protected)`;
           }
         }
       }
