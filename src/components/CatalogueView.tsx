@@ -92,7 +92,7 @@ export function CatalogueView({ data }: { data: CatalogueData }) {
             alt="Sportagon"
             width={799}
             height={160}
-            className="h-8 w-auto max-w-[55vw] shrink-0 self-end object-contain sm:h-11 sm:self-center"
+            className="h-8 w-auto max-w-[55vw] shrink-0 self-start object-contain sm:h-11 sm:self-center"
           />
         </div>
       </header>
