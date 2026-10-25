@@ -13,6 +13,8 @@ export type DraftLine = {
   gst?: string | undefined;
   mode: "new" | "link";
   linkId: string;
+  /** Member of a size × colour group: edited through the group's grid, not on its own. */
+  group?: string | undefined;
   unmap?: boolean;
   ai?: boolean;
   suggest?: string;
@@ -53,6 +55,8 @@ export type Draft = {
   /** "" = decide from vendor vs company state. */
   gstType: "" | "igst" | "intra";
   lines: DraftLine[];
+  /** Size × colour groups: one entry on the bill that expands into a line per variant. */
+  grids?: Record<string, import("./variant-grid").VariantGroup> | undefined;
   /** Approver is editing someone's submitted bill before approving it. */
   reviewOf?: string | undefined;
   reviewOfLabel?: string | undefined;

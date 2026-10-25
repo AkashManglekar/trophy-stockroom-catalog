@@ -7,6 +7,7 @@ import {
   ClipboardPaste,
   Download,
   FileUp,
+  Grid3x3,
   Plus,
   Sparkles,
   Trash2,
@@ -78,6 +79,14 @@ import {
 } from "@/components/kit";
 import { PhotoButtons, Thumb } from "@/components/photos";
 import { VendorForm, vendorRow } from "@/components/VendorForm";
+import { VariantGroupCard } from "@/components/VariantGroupCard";
+import {
+  applyGroup,
+  groupFromLine,
+  removeGroup,
+  type GridCtx,
+  type VariantGroup,
+} from "@/lib/variant-grid";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -215,6 +224,24 @@ function ReceivePage() {
       if (["div", "type", "mat", "sport"].includes(k)) cls.family = "new";
       if (k === "type") cls.size = "";
       return { ...l, cls };
+    });
+
+  // ---------- size × colour entries ----------
+  const gridCtx = (cls: DraftLine["cls"]): GridCtx => ({
+    unit: ctx?.ref.types.find((x) => x.div === cls.div && x.code === cls.type)?.size_unit ?? "in",
+    apparelSizes: ctx?.ref.sizes ?? [],
+    finishes: ctx?.ref.finishes ?? [],
+    products: ctx?.products ?? [],
+  });
+  const setGroup = (g: VariantGroup) => upd((d) => applyGroup(d, g, gridCtx(g.cls)));
+  const toGroup = (l: DraftLine) =>
+    upd((d) => {
+      const g = groupFromLine(l, gridCtx(l.cls).unit);
+      const marked = {
+        ...d,
+        lines: d.lines.map((x) => (x.id === l.id ? { ...x, group: g.id } : x)),
+      };
+      return applyGroup(marked, g, gridCtx(l.cls));
     });
 
   // ---------- AI / file intake ----------
@@ -525,7 +552,17 @@ function ReceivePage() {
   const R = RECEIPT_TYPES[draft.type];
   const shown = draft.lines
     .map((l, i) => [l, i] as const)
-    .filter(([l]) => !onlyAttn || plans[l.id]?.errors.length || plans[l.id]?.kind === "new");
+    .filter(
+      ([l]) =>
+        !onlyAttn ||
+        plans[l.id]?.errors.length ||
+        plans[l.id]?.kind === "new" ||
+        (!!l.group &&
+          draft.lines.some(
+            (x) =>
+              x.group === l.group && (plans[x.id]?.errors.length || plans[x.id]?.kind === "new"),
+          )),
+    );
   const diff =
     num(draft.billTotal) != null
       ? Math.round(((num(draft.billTotal) as number) - sum.value - (costs?.charges ?? 0)) * 100) /
@@ -743,6 +780,13 @@ function ReceivePage() {
             >
               <Plus className="size-4" /> Add line
             </Button>
+            <Button
+              variant="outline"
+              className="h-10 rounded-full text-[12px] font-bold uppercase"
+              onClick={() => setGroup(groupFromLine(newLine(), "in"))}
+            >
+              <Grid3x3 className="size-4" /> Sizes & colours
+            </Button>
           </div>
           {pasteOpen && (
             <div className="grid w-full gap-2">
@@ -781,7 +825,7 @@ function ReceivePage() {
         </div>
       </Card>
 
-      {!draft.lines.length ? (
+      {!draft.lines.length && !Object.keys(draft.grids ?? {}).length ? (
         <Empty>
           {draft.type === "bill"
             ? "No lines yet. Upload the vendor bill above — vendor codes seen before map to your codes instantly."
@@ -828,34 +872,79 @@ function ReceivePage() {
               }
             </button>
           </div>
-          {shown.map(([l, i]) => (
-            <LineCard
-              key={l.id}
-              l={l}
-              i={i}
-              P={plans[l.id] ?? { kind: "new", errors: [], warns: [], received: null }}
-              ctx={ctx}
-              draft={draft}
-              prodById={prodById}
-              thumbOf={thumbOf}
-              updLine={updLine}
-              updCls={updCls}
-              upd={upd}
-            />
-          ))}
+          {shown.map(([l, i]) => {
+            const g = l.group ? draft.grids?.[l.group] : undefined;
+            if (g) {
+              if (draft.lines.findIndex((x) => x.group === g.id) !== i) return null;
+              return (
+                <VariantGroupCard
+                  key={g.id}
+                  g={g}
+                  members={draft.lines.filter((x) => x.group === g.id)}
+                  plans={plans}
+                  ctx={ctx}
+                  isBill={draft.type === "bill"}
+                  firstNo={i + 1}
+                  onChange={setGroup}
+                  onRemove={() => upd((d) => removeGroup(d, g.id))}
+                />
+              );
+            }
+            return (
+              <LineCard
+                key={l.id}
+                l={l}
+                i={i}
+                P={plans[l.id] ?? { kind: "new", errors: [], warns: [], received: null }}
+                ctx={ctx}
+                draft={draft}
+                prodById={prodById}
+                thumbOf={thumbOf}
+                updLine={updLine}
+                updCls={updCls}
+                upd={upd}
+                onGrid={() => toGroup(l)}
+              />
+            );
+          })}
+          {Object.values(draft.grids ?? {})
+            .filter((g) => !draft.lines.some((x) => x.group === g.id))
+            .map((g) => (
+              <VariantGroupCard
+                key={g.id}
+                g={g}
+                members={[]}
+                plans={plans}
+                ctx={ctx}
+                isBill={draft.type === "bill"}
+                firstNo={draft.lines.length + 1}
+                onChange={setGroup}
+                onRemove={() => upd((d) => removeGroup(d, g.id))}
+              />
+            ))}
           {!shown.length && (
             <Empty>
               Every line matches an existing product. Check the totals below and receive.
             </Empty>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-fit rounded-full"
-            onClick={() => upd((d) => ({ ...d, lines: [...d.lines, newLine()] }))}
-          >
-            <Plus className="size-4" /> Add line
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit rounded-full"
+              onClick={() => upd((d) => ({ ...d, lines: [...d.lines, newLine()] }))}
+            >
+              <Plus className="size-4" /> Add line
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit rounded-full"
+              onClick={() => setGroup(groupFromLine(newLine(), "in"))}
+            >
+              <Grid3x3 className="size-4" /> Add sizes & colours entry
+            </Button>
+          </div>
         </Card>
       )}
 
@@ -980,6 +1069,7 @@ function LineCard({
   updLine,
   updCls,
   upd,
+  onGrid,
 }: {
   l: DraftLine;
   i: number;
@@ -991,6 +1081,7 @@ function LineCard({
   updLine: (id: string, patch: Partial<DraftLine> | ((l: DraftLine) => DraftLine)) => void;
   updCls: (id: string, k: keyof DraftLine["cls"], v: string) => void;
   upd: (fn: (d: Draft) => Draft) => void;
+  onGrid: () => void;
 }) {
   const { ref } = ctx;
   const c = l.cls;
@@ -1390,6 +1481,9 @@ function LineCard({
                   }
                 >
                   <Plus className="size-4" /> Another size / finish of this design
+                </Button>
+                <Button size="sm" className="rounded-full" onClick={onGrid}>
+                  <Grid3x3 className="size-4" /> Several sizes / colours — one entry
                 </Button>
               </div>
               {P.errors.length > 0 ? (
