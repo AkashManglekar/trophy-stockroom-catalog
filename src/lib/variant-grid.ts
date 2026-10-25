@@ -130,6 +130,8 @@ export function groupLines(g: VariantGroup, members: DraftLine[], ctx: GridCtx):
             finish,
             family: existing ? g.cls.family : family,
             designName: family.startsWith("l:") ? "" : g.cls.designName,
+            // Customer description is per design: never the size/colour line text.
+            description: g.cls.description.trim() || g.desc.trim(),
           },
         }),
       );

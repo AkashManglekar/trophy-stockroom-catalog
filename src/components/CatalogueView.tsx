@@ -344,10 +344,17 @@ function ItemCard({
             {inr(priceOf(it, size))}
           </span>
         </div>
-        <h3 className="wrap-any text-[14.5px] font-bold leading-snug sm:text-base">{it.name}</h3>
+        <div className="grid min-w-0 gap-0.5">
+          <h3 className="wrap-any text-[14.5px] font-bold leading-snug sm:text-base">{it.name}</h3>
+          {variantCaption(it, size) && (
+            <span className="text-[12px] text-muted-foreground" aria-live="polite">
+              {variantCaption(it, size)}
+            </span>
+          )}
+        </div>
         <SizePicker it={it} sel={size} onSel={pick} />
-        {it.description && (
-          <p className="wrap-any text-[12.5px] text-muted-foreground sm:text-[13.5px]">
+        {usefulDescription(it) && (
+          <p className="wrap-any line-clamp-3 text-[12.5px] text-muted-foreground sm:text-[13px]">
             {it.description}
           </p>
         )}
@@ -374,12 +381,28 @@ function ItemCard({
 }
 
 const priceOf = (it: CatalogueItem, i: number) => it.variants[i]?.price ?? it.price;
+/** Hide descriptions that only repeat the type ("Medal") or a size/colour. */
+const usefulDescription = (it: CatalogueItem) => {
+  const d = it.description.trim().toLowerCase();
+  if (!d || d === it.group.toLowerCase() || d === it.name.toLowerCase()) return false;
+  return !it.variants.some((v) => d.endsWith(v.label.toLowerCase()) && v.label);
+};
 const photoIndex = (it: CatalogueItem, i: number) => {
   const p = it.variants[i]?.photo;
   return p ? it.photos.indexOf(p) : -1;
 };
 
-/** Shows the chosen size; other sizes stay folded away until the customer opens the picker. */
+/** What's selected, in words: "3in · Gold". */
+const variantCaption = (it: CatalogueItem, i: number) => {
+  const v = it.variants[i];
+  if (!v) return "";
+  return [v.size, v.colour].filter(Boolean).join(" · ") || v.label;
+};
+
+/**
+ * Compact variant choice: colour dots and size chips on one wrapping row. Sizes not made in the
+ * chosen colour are dimmed (picking one switches to a colour that has it).
+ */
 function SizePicker({
   it,
   sel,
@@ -393,35 +416,44 @@ function SizePicker({
 }) {
   const [open, setOpen] = useState(false);
   const vs = it.variants;
-  const cur = vs[sel];
-  if (!vs.length || (vs.length === 1 && !cur?.label)) return null;
+  const cur = vs[sel] ?? vs[0];
+  if (!cur || vs.length < 2) return null;
   const ax = variantAxes(vs);
-  if (ax.colours.length > 1)
-    return <ColourSizePicker it={it} sel={sel} onSel={onSel} dark={dark} />;
-  if (vs.length === 1)
-    return (
-      <span className={cn("text-[12.5px]", dark ? "opacity-85" : "text-muted-foreground")}>
-        Size {cur!.label}
-      </span>
+  const byColour = ax.colours.length > 1;
+  const sizes = byColour ? ax.sizes : vs.map((v) => v.label);
+  const many = !byColour && sizes.length > 6;
+  const chip = (on: boolean, dim: boolean) =>
+    cn(
+      "min-w-9 rounded-md border px-2 py-0.5 text-center text-[11.5px] font-semibold tabular-nums transition-colors",
+      on
+        ? dark
+          ? "border-white bg-white text-[#0B1B3F]"
+          : "border-primary bg-primary text-primary-foreground"
+        : dark
+          ? "border-white/30 text-white hover:border-white"
+          : "bg-card hover:border-primary",
+      dim && !on && "opacity-40",
     );
-  return (
-    <div className="grid gap-1.5">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={cn(
-          "inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px]",
-          dark ? "border-white/30 text-white" : "bg-card hover:border-primary",
-        )}
-      >
-        <span className="font-semibold">{cur?.label || "Size"}</span>
-        <span className={dark ? "opacity-75" : "text-muted-foreground"}>· {vs.length} sizes</span>
-        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Choose a size">
-          {vs.map((v, i) => (
+  const sizeChips = (
+    <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Size">
+      {byColour
+        ? ax.sizes.map((s) => {
+            const exists = ax.find(s, cur.colour) >= 0;
+            return (
+              <button
+                key={s || "one"}
+                type="button"
+                role="radio"
+                aria-checked={cur.size === s}
+                title={exists ? s : `${s} — not in ${cur.colour}`}
+                onClick={() => onSel(ax.choose(sel, { size: s }))}
+                className={chip(cur.size === s, !exists)}
+              >
+                {s || "One size"}
+              </button>
+            );
+          })
+        : vs.map((v, i) => (
             <button
               key={v.sku}
               type="button"
@@ -431,106 +463,58 @@ function SizePicker({
                 onSel(i);
                 setOpen(false);
               }}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[12px] font-semibold",
-                i === sel
-                  ? dark
-                    ? "border-white bg-white text-[#0B1B3F]"
-                    : "border-primary bg-primary text-primary-foreground"
-                  : dark
-                    ? "border-white/30 text-white"
-                    : "bg-card hover:border-primary",
-              )}
+              className={chip(i === sel, false)}
             >
               {v.label}
             </button>
           ))}
-        </div>
-      )}
     </div>
   );
-}
-
-/** Two choices for designs that come in several colours (medals): colour swatches and sizes. */
-function ColourSizePicker({
-  it,
-  sel,
-  onSel,
-  dark,
-}: {
-  it: CatalogueItem;
-  sel: number;
-  onSel: (i: number) => void;
-  dark?: boolean | undefined;
-}) {
-  const vs = it.variants;
-  const ax = variantAxes(vs);
-  const cur = vs[sel] ?? vs[0]!;
-  const chip = (on: boolean, off: boolean) =>
-    cn(
-      "rounded-full border px-2.5 py-0.5 text-[12px] font-semibold",
-      on
-        ? dark
-          ? "border-white bg-white text-[#0B1B3F]"
-          : "border-primary bg-primary text-primary-foreground"
-        : dark
-          ? "border-white/30 text-white"
-          : "bg-card hover:border-primary",
-      off && "opacity-40 line-through",
-    );
   return (
-    <div className="grid gap-1.5">
-      <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Colour">
-        {ax.colours.map((c) => {
-          const on = cur.colour === c;
-          return (
-            <button
-              key={c}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              title={c}
-              onClick={() => onSel(ax.choose(sel, { colour: c }))}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold",
-                on
-                  ? dark
-                    ? "border-white bg-white/15 text-white"
-                    : "border-primary text-primary ring-1 ring-primary"
-                  : dark
-                    ? "border-white/30 text-white"
-                    : "bg-card hover:border-primary",
-              )}
-            >
-              <span
-                className="size-4 rounded-full ring-1 ring-black/15"
-                style={{ background: swatchOf(c) }}
-              />
-              {c}
-            </button>
-          );
-        })}
-      </div>
-      {ax.sizes.length > 1 && (
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Size">
-          {ax.sizes.map((s) => {
-            const exists = ax.find(s, cur.colour) >= 0;
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {byColour && (
+        <div className="flex items-center gap-1.5" role="radiogroup" aria-label="Colour">
+          {ax.colours.map((c) => {
+            const on = cur.colour === c;
             return (
               <button
-                key={s || "one"}
+                key={c}
                 type="button"
                 role="radio"
-                aria-checked={cur.size === s}
-                title={exists ? s : `${s} not available in ${cur.colour}`}
-                onClick={() => onSel(ax.choose(sel, { size: s }))}
-                className={chip(cur.size === s, !exists)}
-              >
-                {s || "One size"}
-              </button>
+                aria-checked={on}
+                aria-label={c}
+                title={c}
+                onClick={() => onSel(ax.choose(sel, { colour: c }))}
+                className={cn(
+                  "size-6 shrink-0 rounded-full ring-1 ring-black/15 transition-shadow",
+                  on &&
+                    (dark
+                      ? "ring-2 ring-white ring-offset-2 ring-offset-[#050B1C]"
+                      : "ring-2 ring-primary ring-offset-2 ring-offset-card"),
+                )}
+                style={{ background: swatchOf(c) }}
+              />
             );
           })}
         </div>
       )}
+      {(byColour ? ax.sizes.length > 1 : true) &&
+        (many ? (
+          <div className="grid gap-1.5">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              className={chip(false, false) + " inline-flex items-center gap-1"}
+            >
+              {vs.length} sizes
+              <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+            </button>
+            {open && sizeChips}
+          </div>
+        ) : (
+          sizeChips
+        ))}
     </div>
   );
 }
@@ -641,6 +625,11 @@ function Lightbox({
           <span className="wrap-any font-bold">
             <span className="code-tag mr-2 text-xs opacity-80">{item.code}</span>
             {item.name}
+            {variantCaption(item, size) && (
+              <span className="ml-2 text-sm font-normal opacity-75">
+                {variantCaption(item, size)}
+              </span>
+            )}
           </span>
           <SizePicker
             it={item}
