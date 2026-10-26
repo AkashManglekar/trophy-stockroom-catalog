@@ -83,6 +83,50 @@ export type Database = {
         }
         Relationships: []
       }
+      bill_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by_email: string | null
+          id: string
+          mode: string | null
+          note: string | null
+          paid_on: string
+          receipt_id: string
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          mode?: string | null
+          note?: string | null
+          paid_on?: string
+          receipt_id: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by_email?: string | null
+          id?: string
+          mode?: string | null
+          note?: string | null
+          paid_on?: string
+          receipt_id?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_payments_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_submissions: {
         Row: {
           bill_date: string | null
@@ -153,307 +197,22 @@ export type Database = {
           vendor_id?: string | null
           vendor_name?: string | null
         }
-        Relationships: []
-      }
-      bill_payments: {
-        Row: {
-          amount: number
-          created_at: string
-          created_by_email: string | null
-          id: string
-          mode: string | null
-          note: string | null
-          paid_on: string
-          receipt_id: string
-          reference: string | null
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          created_by_email?: string | null
-          id?: string
-          mode?: string | null
-          note?: string | null
-          paid_on?: string
-          receipt_id: string
-          reference?: string | null
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          created_by_email?: string | null
-          id?: string
-          mode?: string | null
-          note?: string | null
-          paid_on?: string
-          receipt_id?: string
-          reference?: string | null
-        }
-        Relationships: []
-      }
-      vendor_notes: {
-        Row: {
-          id: string
-          kind: string
-          title: string | null
-          body: string | null
-          url: string | null
-          file_path: string | null
-          file_name: string | null
-          mime: string | null
-          size_bytes: number | null
-          pinned: boolean
-          created_at: string
-          created_by: string | null
-          created_by_email: string | null
-          vendor_id: string
-        }
-        Insert: {
-          id?: string
-          kind?: string
-          title?: string | null
-          body?: string | null
-          url?: string | null
-          file_path?: string | null
-          file_name?: string | null
-          mime?: string | null
-          size_bytes?: number | null
-          pinned?: boolean
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          vendor_id?: string
-        }
-        Update: {
-          id?: string
-          kind?: string
-          title?: string | null
-          body?: string | null
-          url?: string | null
-          file_path?: string | null
-          file_name?: string | null
-          mime?: string | null
-          size_bytes?: number | null
-          pinned?: boolean
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          vendor_id?: string
-        }
-        Relationships: []
-      }
-      vendor_reviews: {
-        Row: {
-          comment: string | null
-          created_at: string
-          created_by: string | null
-          created_by_email: string | null
-          delivery: number | null
-          id: string
-          pricing: number | null
-          quality: number | null
-          receipt_id: string | null
-          vendor_id: string
-        }
-        Insert: {
-          comment?: string | null
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          delivery?: number | null
-          id?: string
-          pricing?: number | null
-          quality?: number | null
-          receipt_id?: string | null
-          vendor_id: string
-        }
-        Update: {
-          comment?: string | null
-          created_at?: string
-          created_by?: string | null
-          created_by_email?: string | null
-          delivery?: number | null
-          id?: string
-          pricing?: number | null
-          quality?: number | null
-          receipt_id?: string | null
-          vendor_id?: string
-        }
-        Relationships: []
-      }
-      sales_lines: {
-        Row: {
-          amount: number | null
-          applied_qty: number
-          customer: string | null
-          doc_date: string | null
-          doc_id: string
-          doc_kind: string
-          doc_no: string | null
-          doc_status: string | null
-          id: string
-          item_name: string | null
-          line_key: string
-          product_id: string | null
-          qty: number
-          rate: number | null
-          sku: string | null
-          source: string
-          updated_at: string
-          zoho_item_id: string | null
-        }
-        Insert: {
-          amount?: number | null
-          applied_qty?: number
-          customer?: string | null
-          doc_date?: string | null
-          doc_id: string
-          doc_kind: string
-          doc_no?: string | null
-          doc_status?: string | null
-          id?: string
-          item_name?: string | null
-          line_key: string
-          product_id?: string | null
-          qty?: number
-          rate?: number | null
-          sku?: string | null
-          source?: string
-          updated_at?: string
-          zoho_item_id?: string | null
-        }
-        Update: {
-          amount?: number | null
-          applied_qty?: number
-          customer?: string | null
-          doc_date?: string | null
-          doc_id?: string
-          doc_kind?: string
-          doc_no?: string | null
-          doc_status?: string | null
-          id?: string
-          item_name?: string | null
-          line_key?: string
-          product_id?: string | null
-          qty?: number
-          rate?: number | null
-          sku?: string | null
-          source?: string
-          updated_at?: string
-          zoho_item_id?: string | null
-        }
-        Relationships: []
-      }
-      zoho_connection: {
-        Row: {
-          id: number
-          client_id: string
-          client_secret: string
-          refresh_token: string
-          dc: string
-          org_id: string
-          org_name: string | null
-          connected_at: string
-          connected_by_email: string | null
-        }
-        Insert: {
-          id?: number
-          client_id: string
-          client_secret: string
-          refresh_token: string
-          dc?: string
-          org_id?: string
-          org_name?: string | null
-          connected_at?: string
-          connected_by_email?: string | null
-        }
-        Update: {
-          id?: number
-          client_id?: string
-          client_secret?: string
-          refresh_token?: string
-          dc?: string
-          org_id?: string
-          org_name?: string | null
-          connected_at?: string
-          connected_by_email?: string | null
-        }
-        Relationships: []
-      }
-      zoho_item_map: {
-        Row: {
-          created_at: string
-          product_id: string
-          zoho_key: string
-        }
-        Insert: {
-          created_at?: string
-          product_id: string
-          zoho_key: string
-        }
-        Update: {
-          created_at?: string
-          product_id?: string
-          zoho_key?: string
-        }
-        Relationships: []
-      }
-      quote_requests: {
-        Row: {
-          city: string | null
-          created_at: string
-          email: string | null
-          est_total: number | null
-          handled_by_email: string | null
-          id: string
-          internal_notes: string | null
-          items: Json
-          name: string
-          needed_by: string | null
-          notes: string | null
-          organisation: string | null
-          phone: string
-          ref: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          city?: string | null
-          created_at?: string
-          email?: string | null
-          est_total?: number | null
-          handled_by_email?: string | null
-          id?: string
-          internal_notes?: string | null
-          items?: Json
-          name: string
-          needed_by?: string | null
-          notes?: string | null
-          organisation?: string | null
-          phone: string
-          ref?: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          city?: string | null
-          created_at?: string
-          email?: string | null
-          est_total?: number | null
-          handled_by_email?: string | null
-          id?: string
-          internal_notes?: string | null
-          items?: Json
-          name?: string
-          needed_by?: string | null
-          notes?: string | null
-          organisation?: string | null
-          phone?: string
-          ref?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bill_submissions_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_submissions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       code_counters: {
         Row: {
@@ -630,7 +389,6 @@ export type Database = {
       }
       products: {
         Row: {
-          extra_cost: number | null
           award_class: string | null
           bulk_min_qty: number | null
           bulk_price: number | null
@@ -639,6 +397,7 @@ export type Database = {
           customisable: boolean | null
           description: string | null
           div: string
+          extra_cost: number | null
           family_id: string
           finish: string
           floor_price: number | null
@@ -668,7 +427,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          extra_cost?: number | null
           award_class?: string | null
           bulk_min_qty?: number | null
           bulk_price?: number | null
@@ -677,6 +435,7 @@ export type Database = {
           customisable?: boolean | null
           description?: string | null
           div: string
+          extra_cost?: number | null
           family_id: string
           finish?: string
           floor_price?: number | null
@@ -706,7 +465,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          extra_cost?: number | null
           award_class?: string | null
           bulk_min_qty?: number | null
           bulk_price?: number | null
@@ -715,6 +473,7 @@ export type Database = {
           customisable?: boolean | null
           description?: string | null
           div?: string
+          extra_cost?: number | null
           family_id?: string
           finish?: string
           floor_price?: number | null
@@ -760,13 +519,70 @@ export type Database = {
           },
         ]
       }
+      quote_requests: {
+        Row: {
+          city: string | null
+          created_at: string
+          email: string | null
+          est_total: number | null
+          handled_by_email: string | null
+          id: string
+          internal_notes: string | null
+          items: Json
+          name: string
+          needed_by: string | null
+          notes: string | null
+          organisation: string | null
+          phone: string
+          ref: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          est_total?: number | null
+          handled_by_email?: string | null
+          id?: string
+          internal_notes?: string | null
+          items?: Json
+          name: string
+          needed_by?: string | null
+          notes?: string | null
+          organisation?: string | null
+          phone: string
+          ref?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          est_total?: number | null
+          handled_by_email?: string | null
+          id?: string
+          internal_notes?: string | null
+          items?: Json
+          name?: string
+          needed_by?: string | null
+          notes?: string | null
+          organisation?: string | null
+          phone?: string
+          ref?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       receipt_lines: {
         Row: {
-          gst_rate: number | null
-          extra_cost: number | null
           billed_qty: number | null
           created_new: boolean
           description: string | null
+          extra_cost: number | null
+          gst_rate: number | null
           id: string
           line_no: number
           location: string | null
@@ -777,11 +593,11 @@ export type Database = {
           vendor_item_code: string | null
         }
         Insert: {
-          gst_rate?: number | null
-          extra_cost?: number | null
           billed_qty?: number | null
           created_new?: boolean
           description?: string | null
+          extra_cost?: number | null
+          gst_rate?: number | null
           id?: string
           line_no: number
           location?: string | null
@@ -792,11 +608,11 @@ export type Database = {
           vendor_item_code?: string | null
         }
         Update: {
-          gst_rate?: number | null
-          extra_cost?: number | null
           billed_qty?: number | null
           created_new?: boolean
           description?: string | null
+          extra_cost?: number | null
+          gst_rate?: number | null
           id?: string
           line_no?: number
           location?: string | null
@@ -825,78 +641,78 @@ export type Database = {
       }
       receipts: {
         Row: {
-          due_date: string | null
-          gst_type: string | null
-          gst_breakup: Json | null
-          edited_by_email: string | null
-          edited_at: string | null
-          charges: Json | null
-          goods_value: number | null
-          charges_total: number | null
-          gst_total: number | null
-          total_cost: number | null
           approved_by_email: string | null
           bill_date: string | null
           bill_no: string | null
           bill_total: number | null
+          charges: Json | null
+          charges_total: number | null
           created_at: string | null
           created_by: string | null
           created_by_email: string | null
+          due_date: string | null
+          edited_at: string | null
+          edited_by_email: string | null
+          goods_value: number | null
+          gst_breakup: Json | null
+          gst_total: number | null
+          gst_type: string | null
           id: string
           notes: string | null
           receipt_type: string
           reversed_at: string | null
           reversed_by_email: string | null
+          total_cost: number | null
           vendor_id: string | null
         }
         Insert: {
-          due_date?: string | null
-          gst_type?: string | null
-          gst_breakup?: Json | null
-          edited_by_email?: string | null
-          edited_at?: string | null
-          charges?: Json | null
-          goods_value?: number | null
-          charges_total?: number | null
-          gst_total?: number | null
-          total_cost?: number | null
           approved_by_email?: string | null
           bill_date?: string | null
           bill_no?: string | null
           bill_total?: number | null
+          charges?: Json | null
+          charges_total?: number | null
           created_at?: string | null
           created_by?: string | null
           created_by_email?: string | null
+          due_date?: string | null
+          edited_at?: string | null
+          edited_by_email?: string | null
+          goods_value?: number | null
+          gst_breakup?: Json | null
+          gst_total?: number | null
+          gst_type?: string | null
           id?: string
           notes?: string | null
           receipt_type: string
           reversed_at?: string | null
           reversed_by_email?: string | null
+          total_cost?: number | null
           vendor_id?: string | null
         }
         Update: {
-          due_date?: string | null
-          gst_type?: string | null
-          gst_breakup?: Json | null
-          edited_by_email?: string | null
-          edited_at?: string | null
-          charges?: Json | null
-          goods_value?: number | null
-          charges_total?: number | null
-          gst_total?: number | null
-          total_cost?: number | null
           approved_by_email?: string | null
           bill_date?: string | null
           bill_no?: string | null
           bill_total?: number | null
+          charges?: Json | null
+          charges_total?: number | null
           created_at?: string | null
           created_by?: string | null
           created_by_email?: string | null
+          due_date?: string | null
+          edited_at?: string | null
+          edited_by_email?: string | null
+          goods_value?: number | null
+          gst_breakup?: Json | null
+          gst_total?: number | null
+          gst_type?: string | null
           id?: string
           notes?: string | null
           receipt_type?: string
           reversed_at?: string | null
           reversed_by_email?: string | null
+          total_cost?: number | null
           vendor_id?: string | null
         }
         Relationships: [
@@ -905,6 +721,77 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_lines: {
+        Row: {
+          amount: number | null
+          applied_qty: number
+          customer: string | null
+          doc_date: string | null
+          doc_id: string
+          doc_kind: string
+          doc_no: string | null
+          doc_status: string | null
+          id: string
+          item_name: string | null
+          line_key: string
+          product_id: string | null
+          qty: number
+          rate: number | null
+          sku: string | null
+          source: string
+          updated_at: string
+          zoho_item_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          applied_qty?: number
+          customer?: string | null
+          doc_date?: string | null
+          doc_id: string
+          doc_kind: string
+          doc_no?: string | null
+          doc_status?: string | null
+          id?: string
+          item_name?: string | null
+          line_key: string
+          product_id?: string | null
+          qty?: number
+          rate?: number | null
+          sku?: string | null
+          source?: string
+          updated_at?: string
+          zoho_item_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          applied_qty?: number
+          customer?: string | null
+          doc_date?: string | null
+          doc_id?: string
+          doc_kind?: string
+          doc_no?: string | null
+          doc_status?: string | null
+          id?: string
+          item_name?: string | null
+          line_key?: string
+          product_id?: string | null
+          qty?: number
+          rate?: number | null
+          sku?: string | null
+          source?: string
+          updated_at?: string
+          zoho_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -964,8 +851,8 @@ export type Database = {
       }
       user_roles: {
         Row: {
-          created_at: string
           can_publish: boolean
+          created_at: string
           email: string | null
           full_name: string | null
           id: string
@@ -973,8 +860,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          created_at?: string
           can_publish?: boolean
+          created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
@@ -982,8 +869,8 @@ export type Database = {
           user_id: string
         }
         Update: {
-          created_at?: string
           can_publish?: boolean
+          created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
@@ -1033,6 +920,119 @@ export type Database = {
           },
           {
             foreignKeyName: "vendor_codes_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_notes: {
+        Row: {
+          body: string | null
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          file_name: string | null
+          file_path: string | null
+          id: string
+          kind: string
+          mime: string | null
+          pinned: boolean
+          size_bytes: number | null
+          title: string | null
+          url: string | null
+          vendor_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          kind: string
+          mime?: string | null
+          pinned?: boolean
+          size_bytes?: number | null
+          title?: string | null
+          url?: string | null
+          vendor_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          mime?: string | null
+          pinned?: boolean
+          size_bytes?: number | null
+          title?: string | null
+          url?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_notes_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          delivery: number | null
+          id: string
+          pricing: number | null
+          quality: number | null
+          receipt_id: string | null
+          vendor_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          delivery?: number | null
+          id?: string
+          pricing?: number | null
+          quality?: number | null
+          receipt_id?: string | null
+          vendor_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          delivery?: number | null
+          id?: string
+          pricing?: number | null
+          quality?: number | null
+          receipt_id?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_reviews_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_reviews_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
@@ -1163,6 +1163,42 @@ export type Database = {
         }
         Relationships: []
       }
+      zoho_connection: {
+        Row: {
+          client_id: string
+          client_secret: string
+          connected_at: string
+          connected_by_email: string | null
+          dc: string
+          id: number
+          org_id: string
+          org_name: string | null
+          refresh_token: string
+        }
+        Insert: {
+          client_id: string
+          client_secret: string
+          connected_at?: string
+          connected_by_email?: string | null
+          dc?: string
+          id?: number
+          org_id?: string
+          org_name?: string | null
+          refresh_token: string
+        }
+        Update: {
+          client_id?: string
+          client_secret?: string
+          connected_at?: string
+          connected_by_email?: string | null
+          dc?: string
+          id?: number
+          org_id?: string
+          org_name?: string | null
+          refresh_token?: string
+        }
+        Relationships: []
+      }
       zoho_exports: {
         Row: {
           created_at: string | null
@@ -1187,37 +1223,37 @@ export type Database = {
         }
         Relationships: []
       }
+      zoho_item_map: {
+        Row: {
+          created_at: string
+          product_id: string
+          zoho_key: string
+        }
+        Insert: {
+          created_at?: string
+          product_id: string
+          zoho_key: string
+        }
+        Update: {
+          created_at?: string
+          product_id?: string
+          zoho_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoho_item_map_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      approve_bill: {
-        Args: { p_id: string; p_payload?: Json; p_draft?: Json }
-        Returns: Json
-      }
-      can_approve: { Args: never; Returns: boolean }
-      can_publish: { Args: never; Returns: boolean }
-      apply_sales: { Args: { p_docs: Json; p_source?: string }; Returns: Json }
-      map_sale_item: { Args: { p_key: string; p_product: string }; Returns: number }
-      set_bill_due: { Args: { p_receipt: string; p_due: string | null }; Returns: undefined }
-      delete_bill: { Args: { p_receipt: string }; Returns: string[] }
-      update_bill: { Args: { p_receipt: string; p_header: Json; p_lines: Json }; Returns: string[] }
-      size_label: { Args: { p_size: string; p_unit: string }; Returns: string }
-      size_tag: { Args: { p_size: string; p_unit: string }; Returns: string }
-      clear_samples: { Args: never; Returns: string[] }
-      delete_product: { Args: { p_product: string }; Returns: string[] }
-      delete_vendor: { Args: { p_vendor: string }; Returns: string }
-      reject_bill: { Args: { p_id: string; p_note: string }; Returns: undefined }
-      submit_bill: {
-        Args: { p_payload: Json; p_draft: Json; p_meta: Json; p_replaces?: string }
-        Returns: string
-      }
-      withdraw_bill: { Args: { p_id: string }; Returns: undefined }
-      adjust_stock_bulk: {
-        Args: { p_lines: Json; p_reason: string; p_note?: string }
-        Returns: number
-      }
       adjust_stock: {
         Args: {
           p_note: string
@@ -1227,8 +1263,33 @@ export type Database = {
         }
         Returns: undefined
       }
+      adjust_stock_bulk: {
+        Args: { p_lines: Json; p_note?: string; p_reason: string }
+        Returns: number
+      }
+      adjust_stock_core: {
+        Args: {
+          p_note: string
+          p_product: string
+          p_qty: number
+          p_reason: string
+        }
+        Returns: undefined
+      }
+      apply_sale_line: { Args: { p_line: string }; Returns: number }
+      apply_sales: { Args: { p_docs: Json; p_source?: string }; Returns: Json }
+      approve_bill: {
+        Args: { p_draft?: Json; p_id: string; p_payload?: Json }
+        Returns: Json
+      }
+      can_approve: { Args: never; Returns: boolean }
       can_contribute: { Args: never; Returns: boolean }
       can_edit: { Args: never; Returns: boolean }
+      can_publish: { Args: never; Returns: boolean }
+      clear_samples: { Args: never; Returns: string[] }
+      delete_bill: { Args: { p_receipt: string }; Returns: string[] }
+      delete_product: { Args: { p_product: string }; Returns: string[] }
+      delete_vendor: { Args: { p_vendor: string }; Returns: string }
       get_catalogue: {
         Args: never
         Returns: {
@@ -1243,14 +1304,60 @@ export type Database = {
       }
       get_catalogue_logo: { Args: never; Returns: string }
       is_member: { Args: never; Returns: boolean }
+      map_sale_item: {
+        Args: { p_key: string; p_product: string }
+        Returns: number
+      }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
       next_vendor_code: { Args: never; Returns: string }
+      owner_email: { Args: never; Returns: string }
       receive_stock: { Args: { payload: Json }; Returns: Json }
+      receive_stock_core: { Args: { payload: Json }; Returns: Json }
+      reject_bill: {
+        Args: { p_id: string; p_note: string }
+        Returns: undefined
+      }
       rename_family: {
         Args: { p_family: string; p_name: string }
         Returns: undefined
       }
+      resolve_sale_product: {
+        Args: { p_item_id: string; p_name: string; p_sku: string }
+        Returns: string
+      }
       reverse_receipt: { Args: { p_receipt: string }; Returns: undefined }
+      reverse_receipt_core: { Args: { p_receipt: string }; Returns: undefined }
+      set_bill_due: {
+        Args: { p_due: string; p_receipt: string }
+        Returns: undefined
+      }
+      size_label: { Args: { p_size: string; p_unit: string }; Returns: string }
+      size_tag: { Args: { p_size: string; p_unit: string }; Returns: string }
+      submit_bill: {
+        Args: {
+          p_draft: Json
+          p_meta: Json
+          p_payload: Json
+          p_replaces?: string
+        }
+        Returns: string
+      }
+      terms_days: { Args: { p_from: string; p_terms: string }; Returns: number }
+      update_bill: {
+        Args: { p_header: Json; p_lines: Json; p_receipt: string }
+        Returns: string[]
+      }
+      variant_sku: {
+        Args: {
+          p_base: string
+          p_finish: string
+          p_self?: string
+          p_size: string
+          p_unit: string
+        }
+        Returns: string
+      }
+      withdraw_bill: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "owner" | "editor" | "contributor" | "viewer"
