@@ -966,7 +966,11 @@ function BillPayments({ b }: { b: BillWithLines }) {
     await inv("payments");
   }
   async function setDue(v: string) {
-    const { error } = await supabase.rpc("set_bill_due", { p_receipt: b.id, p_due: v || null });
+    // p_due defaults to null in the database, so omitting it clears the due date.
+    const { error } = await supabase.rpc("set_bill_due", {
+      p_receipt: b.id,
+      ...(v ? { p_due: v } : {}),
+    });
     if (error) {
       toast.error(error.message);
       return;
