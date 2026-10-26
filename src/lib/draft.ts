@@ -62,6 +62,8 @@ export type Draft = {
   reviewOfLabel?: string | undefined;
   /** Submitter is fixing a bill that was sent back. */
   resubmitOf?: string | undefined;
+  /** Saved copy in Drafts (bill_drafts) this bill was opened from. */
+  savedId?: string | undefined;
 };
 
 const KEY = "stockroom-draft-v1";

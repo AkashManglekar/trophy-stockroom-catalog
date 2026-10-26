@@ -14,7 +14,8 @@ import {
   useVendors,
 } from "@/lib/data";
 import { billMoney, vendorBusiness } from "@/lib/finance";
-import { Card, CardTitle, Code, Empty, PageHead, Pill } from "@/components/kit";
+import { Card, CardTitle, Code, Empty, PageHead } from "@/components/kit";
+import { OrderNext, useOrderNextCount } from "@/components/OrderNext";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -49,6 +50,10 @@ function Dashboard() {
   const reviews = useReviews();
   const vendors = useVendors();
 
+  const activeProducts = useMemo(
+    () => (products.data ?? []).filter((p) => p.status !== "Archived" && !p.is_sample),
+    [products.data],
+  );
   const d = useMemo(() => {
     const ps = (products.data ?? []).filter((p) => p.status !== "Archived" && !p.is_sample);
     const byId = new Map(ps.map((p) => [p.id, p]));
@@ -109,15 +114,7 @@ function Dashboard() {
       .map((p) => ({ p, value: p.stock * Number(p.landed ?? 0) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
-    const low = ps
-      .filter((p) => {
-        const t = ref.data?.types.find((x) => x.div === p.div && x.code === p.type);
-        if (t?.is_service) return false;
-        const rp = p.reorder_point ?? 0;
-        return (rp > 0 && p.stock <= rp) || (p.stock <= 0 && sold30.has(p.id));
-      })
-      .sort((a, b) => a.stock - b.stock)
-      .slice(0, 8);
+    const soldQty = new Map([...sold30.entries()].map(([id, x]) => [id, x.qty]));
 
     // by type
     const byType = new Map<string, number>();
@@ -190,7 +187,7 @@ function Dashboard() {
       designs,
       top,
       slow,
-      low,
+      soldQty,
       types,
       owed,
       overdue,
@@ -214,6 +211,7 @@ function Dashboard() {
     ref.data,
   ]);
 
+  const toOrder = useOrderNextCount(activeProducts, ref.data);
   if (!ref.data || products.isLoading) return <Empty>Loading…</Empty>;
   const ch = pctChange(d.sThis, d.sPrev);
   const fam = families.data ?? [];
@@ -279,13 +277,14 @@ function Dashboard() {
         />
         <Kpi k="Won this month" v={inr(Math.round(d.wonM))} sub="from catalogue enquiries" />
         <Kpi
-          k="Low stock"
-          v={String(d.low.length)}
-          sub={d.unmatched ? `${d.unmatched} Zoho lines unmatched` : "at or below reorder point"}
-          tone={d.low.length ? "warn" : undefined}
-          to="/products"
+          k="To reorder"
+          v={String(toOrder)}
+          sub={d.unmatched ? `${d.unmatched} Zoho lines unmatched` : "low stock, not yet ordered"}
+          tone={toOrder ? "warn" : undefined}
         />
       </div>
+
+      <OrderNext products={activeProducts} families={fam} ref_={ref.data} sold30={d.soldQty} />
 
       <Card>
         <CardTitle>Sales vs purchases · last 6 months</CardTitle>
@@ -298,20 +297,7 @@ function Dashboard() {
             <Line key={p.id} p={p} fam={fam} right={`${qty} sold · ${inr(Math.round(amt))}`} />
           ))}
         </ListCard>
-        <ListCard title="Reorder now" empty="Nothing at or below its reorder point.">
-          {d.low.map((p) => (
-            <Line
-              key={p.id}
-              p={p}
-              fam={fam}
-              right={
-                <Pill tone={p.stock <= 0 ? "bad" : "warn"}>
-                  {p.stock} left{p.reorder_point ? ` · reorder at ${p.reorder_point}` : ""}
-                </Pill>
-              }
-            />
-          ))}
-        </ListCard>
+
         <ListCard
           title="Slow movers · no sale in 60 days"
           empty="Everything in stock sold recently."

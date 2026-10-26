@@ -83,6 +83,54 @@ export type Database = {
         }
         Relationships: []
       }
+      bill_drafts: {
+        Row: {
+          bill_date: string | null
+          bill_no: string | null
+          created_at: string
+          created_by: string
+          created_by_email: string | null
+          data: Json
+          id: string
+          line_count: number
+          note: string | null
+          updated_at: string
+          updated_by_email: string | null
+          value: number | null
+          vendor_name: string | null
+        }
+        Insert: {
+          bill_date?: string | null
+          bill_no?: string | null
+          created_at?: string
+          created_by?: string
+          created_by_email?: string | null
+          data: Json
+          id?: string
+          line_count?: number
+          note?: string | null
+          updated_at?: string
+          updated_by_email?: string | null
+          value?: number | null
+          vendor_name?: string | null
+        }
+        Update: {
+          bill_date?: string | null
+          bill_no?: string | null
+          created_at?: string
+          created_by?: string
+          created_by_email?: string | null
+          data?: Json
+          id?: string
+          line_count?: number
+          note?: string | null
+          updated_at?: string
+          updated_by_email?: string | null
+          value?: number | null
+          vendor_name?: string | null
+        }
+        Relationships: []
+      }
       bill_payments: {
         Row: {
           amount: number
@@ -389,6 +437,7 @@ export type Database = {
       }
       products: {
         Row: {
+          alias_codes: string[]
           award_class: string | null
           bulk_min_qty: number | null
           bulk_price: number | null
@@ -427,6 +476,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          alias_codes?: string[]
           award_class?: string | null
           bulk_min_qty?: number | null
           bulk_price?: number | null
@@ -465,6 +515,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          alias_codes?: string[]
           award_class?: string | null
           bulk_min_qty?: number | null
           bulk_price?: number | null
@@ -573,6 +624,42 @@ export type Database = {
           ref?: string
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      reorder_flags: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          note: string | null
+          product_id: string
+          qty: number | null
+          state: string
+          until: string | null
+          vendor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          note?: string | null
+          product_id: string
+          qty?: number | null
+          state: string
+          until?: string | null
+          vendor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          note?: string | null
+          product_id?: string
+          qty?: number | null
+          state?: string
+          until?: string | null
+          vendor_id?: string | null
         }
         Relationships: []
       }
@@ -1251,7 +1338,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      product_sources: {
+        Row: {
+          avg_cost: number | null
+          bills: number | null
+          last_bill: string | null
+          last_cost: number | null
+          last_date: string | null
+          last_extra: number | null
+          min_cost: number | null
+          product_id: string | null
+          received_at: string | null
+          units: number | null
+          vendor_code: string | null
+          vendor_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adjust_stock: {
@@ -1307,6 +1410,10 @@ export type Database = {
       map_sale_item: {
         Args: { p_key: string; p_product: string }
         Returns: number
+      }
+      merge_products: {
+        Args: { p_from: string; p_into: string }
+        Returns: Json
       }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
       next_vendor_code: { Args: never; Returns: string }

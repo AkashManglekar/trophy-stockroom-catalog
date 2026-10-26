@@ -17,6 +17,9 @@ export type VendorReview = Tables<"vendor_reviews">;
 export type VendorNote = Tables<"vendor_notes">;
 export type SaleLine = Tables<"sales_lines">;
 export type QuoteRequest = Tables<"quote_requests">;
+export type ProductSource = Tables<"product_sources">;
+export type ReorderFlag = Tables<"reorder_flags">;
+export type BillDraft = Tables<"bill_drafts">;
 export const PAY_MODES = ["UPI", "NEFT / RTGS", "IMPS", "Cash", "Cheque", "Card", "Other"];
 export type Role = "owner" | "editor" | "contributor" | "viewer";
 
@@ -37,10 +40,13 @@ export const ROLE_INFO: Record<Exclude<Role, "owner">, { label: string; does: st
 };
 
 export type Band = { from: number; mult: number };
+export type ReorderRule = { low: number; upTo?: number | null | undefined };
 export type AppSettings = {
   bands: Band[];
   /** Price bands for particular product types ("DIV:TYPE", e.g. "TR:MED"), replacing `bands`. */
   type_bands: Record<string, Band[]>;
+  /** Low-stock reminders per product type ("DIV:TYPE"): remind at or below `low`, order up to `upTo`. */
+  reorder: Record<string, ReorderRule>;
   basis: "pre_gst" | "mrp";
   edge_protection: boolean;
   apparel_gst: { threshold: number; low: number; high: number };
@@ -68,6 +74,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     { from: 2001, mult: 1.5 },
   ],
   type_bands: {},
+  reorder: {},
   basis: "pre_gst",
   edge_protection: false,
   apparel_gst: { threshold: 2500, low: 5, high: 18 },
@@ -87,6 +94,14 @@ export function normaliseSettings(raw: unknown): AppSettings {
       d.type_bands && typeof d.type_bands === "object"
         ? Object.fromEntries(
             Object.entries(d.type_bands).filter(([, v]) => Array.isArray(v) && v.length),
+          )
+        : {},
+    reorder:
+      d.reorder && typeof d.reorder === "object"
+        ? Object.fromEntries(
+            Object.entries(d.reorder).filter(
+              ([, v]) => v && typeof v === "object" && Number(v.low) > 0,
+            ),
           )
         : {},
     apparel_gst: { ...DEFAULT_SETTINGS.apparel_gst, ...(d.apparel_gst ?? {}) },

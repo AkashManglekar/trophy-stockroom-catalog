@@ -259,6 +259,7 @@ function BillPanel({
 }) {
   const { isOwner, canPublish } = useAuth();
   const inv = useInvalidate();
+  const ref = useRefData();
   const [editing, setEditing] = useState(false);
   const [sure, setSure] = useState("");
   const [busy, setBusy] = useState("");
@@ -282,10 +283,18 @@ function BillPanel({
       setBusy("");
     }
   }
+  // Without this bill, a product may now be priced on another vendor's price.
+  async function repriceBillProducts() {
+    const ids = [...new Set(b.lines.map((l) => l.product_id).filter((x): x is string => !!x))];
+    if (!ids.length || !ref.data) return;
+    const fresh = await supabase.from("products").select("*").in("id", ids);
+    if (fresh.data) await repriceProducts(fresh.data, ref.data);
+  }
   const reverse = () =>
     act("rev", async () => {
       const { error } = await supabase.rpc("reverse_receipt", { p_receipt: b.id });
       if (error) throw error;
+      await repriceBillProducts();
       toast.success("Bill reversed — its stock was removed");
       await inv("receipts", "products", "adjustments");
     });
@@ -294,6 +303,7 @@ function BillPanel({
       const { data, error } = await supabase.rpc("delete_bill", { p_receipt: b.id });
       if (error) throw error;
       if (data?.length) await supabase.storage.from("media").remove(withThumbs(data));
+      await repriceBillProducts();
       toast.success("Bill deleted");
       onClose();
       await inv("receipts", "products", "families", "photos", "adjustments", "vendor_codes");

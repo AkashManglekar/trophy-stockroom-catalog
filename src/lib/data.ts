@@ -17,12 +17,16 @@ import {
   type VendorNote,
   type SaleLine,
   type QuoteRequest,
+  type ProductSource,
+  type ReorderFlag,
+  type BillDraft,
   type Vendor,
   type VendorCode,
 } from "./domain";
 import { computePrice, pricePayload } from "./pricing";
 import { designNameProblem, sizeLabel } from "./naming";
 import { photoUrl } from "./photos";
+import { isLow } from "./sourcing";
 
 const STALE = 30_000;
 
@@ -95,6 +99,36 @@ export const useVendorCodes = () =>
     queryKey: ["vendor_codes"],
     staleTime: STALE,
     queryFn: () => all<VendorCode>(supabase.from("vendor_codes").select("*")),
+  });
+/** Every vendor's latest price and history per product (from received bills). */
+export const useSources = () =>
+  useQuery({
+    queryKey: ["sources"],
+    staleTime: STALE,
+    queryFn: () => all<ProductSource>(supabase.from("product_sources").select("*")),
+  });
+/** Dashboard decisions on low-stock items: ordered / ignored. */
+export const useReorderFlags = () =>
+  useQuery({
+    queryKey: ["reorder_flags"],
+    staleTime: STALE,
+    queryFn: () => all<ReorderFlag>(supabase.from("reorder_flags").select("*")),
+  });
+/** Bills parked as drafts (without their full contents). */
+export const useBillDrafts = (enabled = true) =>
+  useQuery({
+    queryKey: ["bill_drafts"],
+    staleTime: STALE,
+    enabled,
+    queryFn: () =>
+      all<Omit<BillDraft, "data">>(
+        supabase
+          .from("bill_drafts")
+          .select(
+            "id,vendor_name,bill_no,bill_date,line_count,value,note,created_by,created_by_email,created_at,updated_at,updated_by_email",
+          )
+          .order("updated_at", { ascending: false }),
+      ),
   });
 /** The 40 latest bills with their lines, in one request. */
 export const useReceipts = () =>
@@ -251,8 +285,12 @@ export function usePhotoUrls(paths: string[], thumb = true): Record<string, stri
 
 export function useInvalidate() {
   const qc = useQueryClient();
-  return (...keys: string[]) =>
-    Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return (...keys: string[]) => {
+    // Vendor prices per product come from bills, so they refresh whenever bills or products do.
+    const all = new Set(keys);
+    if (all.has("receipts") || all.has("products") || all.has("vendors")) all.add("sources");
+    return Promise.all([...all].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  };
 }
 
 export async function saveSettings(next: AppSettings) {
@@ -349,7 +387,7 @@ export function attentionReasons(
   if (!t?.is_service) {
     if (!p.location) out.push("location");
     if (!photoCount) out.push("photo");
-    if ((p.reorder_point ?? 0) > 0 && p.stock <= (p.reorder_point ?? 0)) out.push("low stock");
+    if (isLow(p, ref.settings, t)) out.push("low stock");
   }
   if (p.selling != null && p.landed != null && p.selling <= p.landed) out.push("below cost");
   return out;

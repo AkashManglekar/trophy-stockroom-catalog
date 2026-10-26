@@ -51,6 +51,7 @@ import { removePhoto, setMainPhoto, withThumbs } from "@/lib/photos";
 import { Card, Code, Empty, Field, PageHead, Pill, Select, TextInput } from "@/components/kit";
 import { PhotoButtons, Thumb } from "@/components/photos";
 import { BrandMark } from "@/components/BrandMark";
+import { LinkToProduct, ProductSourcing, ReorderLevelField } from "@/components/ProductSourcing";
 import { swatchOf } from "@/lib/variants";
 import { BulkAdjust, StockAdjustForm } from "@/components/StockAdjust";
 import { Button } from "@/components/ui/button";
@@ -575,7 +576,7 @@ function ProductPanel({
   const t = ref_.types.find((x) => x.div === p.div && x.code === p.type);
   const d = ref_.divisions.find((x) => x.code === p.div);
   const live = priceFor(p, ref_);
-  const sources = (vcodes.data ?? []).filter((v) => v.product_id === p.id);
+  const allProducts = useProducts();
   const ro = !canContribute;
   const [sureDel, setSureDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -740,6 +741,11 @@ function ProductPanel({
             This size: <span className="font-mono">{p.code}</span>
             {variantLabel(p, ref_, manyFinishes) ? ` · ${variantLabel(p, ref_, manyFinishes)}` : ""}
           </p>
+          {(p.alias_codes ?? []).length > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Also found by: <span className="font-mono">{p.alias_codes.join(", ")}</span>
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 gap-1">
           <Button
@@ -952,11 +958,20 @@ function ProductPanel({
         </h4>
         <dl className="grid grid-cols-[minmax(110px,max-content)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm tabular-nums">
           <dt className="text-muted-foreground">Unit cost</dt>
-          <dd>{inr(p.unit_cost)}</dd>
+          <dd>
+            {inr(p.unit_cost)}
+            {p.preferred_vendor_id && (
+              <span className="text-xs text-muted-foreground">
+                {" "}
+                · {vendors.data?.find((v) => v.id === p.preferred_vendor_id)?.display_name} (lowest
+                vendor)
+              </span>
+            )}
+          </dd>
           <dt className="text-muted-foreground">Bill charges</dt>
           <dd>
             {p.extra_cost != null ? (
-              `${inr(p.extra_cost)} / unit (last bill)`
+              `${inr(p.extra_cost)} / unit (that vendor's last bill)`
             ) : (
               <span className="text-muted-foreground">estimated freight + packaging</span>
             )}
@@ -1097,24 +1112,7 @@ function ProductPanel({
 
       <ProductBills productId={p.id} />
 
-      <section className="grid gap-2">
-        <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
-          Sources
-        </h4>
-        {sources.length ? (
-          <ul className="grid gap-1 text-sm">
-            {sources.map((s) => (
-              <li key={s.id} className="flex flex-wrap gap-x-2">
-                <span>{vendors.data?.find((v) => v.id === s.vendor_id)?.display_name}</span>
-                <Code>{s.vendor_item_code ?? "—"}</Code>
-                <span className="text-muted-foreground">last {inr(s.last_cost)}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs text-muted-foreground">No vendor codes mapped yet.</p>
-        )}
-      </section>
+      <ProductSourcing p={p} />
 
       <section className="grid gap-3">
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
@@ -1139,7 +1137,7 @@ function ProductPanel({
               ))}
             </Select>
           </Field>
-          <Field label="Unit cost ₹">
+          <Field label="Unit cost ₹" hint="Follows the lowest vendor price on bills">
             <TextInput
               disabled={ro}
               inputMode="decimal"
@@ -1150,17 +1148,21 @@ function ProductPanel({
               }}
             />
           </Field>
-          <Field label="Reorder point">
-            <TextInput
-              disabled={ro}
-              inputMode="numeric"
-              defaultValue={p.reorder_point ?? ""}
-              onBlur={(e) => {
-                const v = num(e.target.value);
-                if (v !== p.reorder_point) save({ reorder_point: v ?? 0 });
-              }}
-            />
-          </Field>
+          <ReorderLevelField
+            p={p}
+            ref_={ref_}
+            ro={ro}
+            onSave={(v) =>
+              save(
+                { reorder_point: v },
+                v === 0
+                  ? "No low-stock reminders for this product"
+                  : v == null
+                    ? "Follows the category's low-stock level"
+                    : `Reminds at ${v} or fewer`,
+              )
+            }
+          />
           <Field label="Shelf location">
             <TextInput
               disabled={ro}
@@ -1208,6 +1210,15 @@ function ProductPanel({
           Changes save when you leave a field. The code never changes and is never reused.
         </p>
       </section>
+
+      {canEdit && (
+        <LinkToProduct
+          p={p}
+          products={allProducts.data ?? []}
+          ref_={ref_}
+          onDone={(id) => onPick(id)}
+        />
+      )}
 
       {canEdit && (
         <section className="grid gap-2 rounded-xl border border-dashed p-3">

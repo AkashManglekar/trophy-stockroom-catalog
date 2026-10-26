@@ -1,5 +1,5 @@
 import type { Draft, DraftLine } from "./draft";
-import type { Family, Product, RefData, VendorCode } from "./domain";
+import type { Family, Product, ProductSource, RefData, Vendor, VendorCode } from "./domain";
 import { num } from "./domain";
 import { computePrice, type PriceResult } from "./pricing";
 import {
@@ -47,6 +47,9 @@ export type PlanCtx = {
   families: Family[];
   vendorCodes: VendorCode[];
   counters: Record<string, number>;
+  /** Each vendor's latest price per product: a product is priced on the lowest. */
+  sources?: ProductSource[] | undefined;
+  vendors?: Vendor[] | undefined;
 };
 
 export function findMatch(
@@ -57,7 +60,9 @@ export function findMatch(
   if (line.unmap) return null;
   const own = line.vitem.trim().toUpperCase();
   if (own) {
-    const p = ctx.products.find((x) => x.code === own);
+    const p =
+      ctx.products.find((x) => x.code === own) ??
+      ctx.products.find((x) => (x.alias_codes ?? []).includes(own));
     if (p) return { productId: p.id, by: "code" };
   }
   if (vendorId && vendorId !== "NEW") {
@@ -118,7 +123,7 @@ export function planDraft(d: Draft, ctx: PlanCtx): Record<string, LinePlan> {
       if (!p) return;
       if (isBill && p.unit_cost && cost && Math.abs(cost - p.unit_cost) / p.unit_cost > 0.25)
         P.warns.push(
-          `cost ${cost > p.unit_cost ? "up" : "down"} ${Math.round((Math.abs(cost - p.unit_cost) / p.unit_cost) * 100)}% vs last (₹${p.unit_cost})`,
+          `cost ${cost > p.unit_cost ? "up" : "down"} ${Math.round((Math.abs(cost - p.unit_cost) / p.unit_cost) * 100)}% vs current (₹${p.unit_cost})`,
         );
       if (p.status === "Discontinued") P.warns.push(`${p.code} is discontinued`);
       if (p.status === "Archived")

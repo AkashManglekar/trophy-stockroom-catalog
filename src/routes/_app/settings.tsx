@@ -14,6 +14,7 @@ import {
   useRefData,
 } from "@/lib/data";
 import { sortedBands, typeBandKey } from "@/lib/pricing";
+import { isLow, typeKey } from "@/lib/sourcing";
 import { publicPrefix } from "@/lib/naming";
 import {
   Card,
@@ -66,6 +67,7 @@ function SettingsPage() {
       <PriceRule ref_={ref.data} ro={!canEdit} />
       <TypeBands ref_={ref.data} ro={!canEdit} />
       <DivisionTable ref_={ref.data} ro={!canEdit} />
+      <ReorderSettings ref_={ref.data} ro={!canEdit} />
       <CatalogueSettings ref_={ref.data} ro={!canEdit} />
       <TypesCard ref_={ref.data} ro={!canEdit} />
       <CodeLists ref_={ref.data} ro={!canEdit} />
@@ -935,6 +937,108 @@ function TypeBands({ ref_, ro }: { ref_: RefData; ro: boolean }) {
           </Button>
         </div>
       )}
+    </Card>
+  );
+}
+
+/** Low-stock reminders per product type: the dashboard's "Order next" list comes from these. */
+function ReorderSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
+  const s = ref_.settings;
+  const inv = useInvalidate();
+  const products = useProducts();
+  const ps = products.data ?? [];
+  async function save(key: string, low: number | null, upTo: number | null, name: string) {
+    const next = { ...s.reorder };
+    if (!low || low <= 0) delete next[key];
+    else next[key] = { low, upTo: upTo && upTo > low ? upTo : null };
+    try {
+      await saveSettings({ ...s, reorder: next });
+      await inv("ref");
+      toast.success(low ? `${name}: remind at ${low} or fewer` : `${name}: no reminders`);
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  }
+  const types = ref_.types.filter((t) => !t.is_service);
+  return (
+    <Card>
+      <CardTitle>Low-stock reminders</CardTitle>
+      <p className="text-sm text-muted-foreground">
+        When a product's stock falls to its category's level, it shows on the Dashboard under{" "}
+        <b>Order next</b> with how many to order and the best vendor to buy from. A product can set
+        its own level on its page (0 = never remind). <b>Order up to</b> is the stock you want after
+        reordering; blank = twice the reminder level.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="py-2 pr-3 font-semibold">Category</th>
+              <th className="py-2 pr-3 font-semibold">Remind at or below</th>
+              <th className="py-2 pr-3 font-semibold">Order up to</th>
+              <th className="py-2 font-semibold">Products</th>
+            </tr>
+          </thead>
+          <tbody>
+            {types.map((t) => {
+              const key = `${t.div}:${t.code}`;
+              const rule = s.reorder[key];
+              const mine = ps.filter(
+                (p) => typeKey(p) === key && p.status !== "Archived" && p.status !== "Discontinued",
+              );
+              const low = mine.filter((p) => isLow(p, s, t)).length;
+              const d = ref_.divisions.find((x) => x.code === t.div);
+              return (
+                <tr key={t.id} className="border-t">
+                  <td className="py-2 pr-3">
+                    <b>{t.name}</b>{" "}
+                    <span className="text-xs text-muted-foreground">{d?.name ?? t.div}</span>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <TextInput
+                      key={`l-${key}-${rule?.low ?? ""}`}
+                      disabled={ro}
+                      inputMode="numeric"
+                      className="w-24"
+                      placeholder="off"
+                      defaultValue={rule?.low ?? ""}
+                      aria-label={`${t.name}: remind at or below`}
+                      onBlur={(e) => {
+                        const v = num(e.target.value);
+                        if ((v ?? 0) !== (rule?.low ?? 0)) save(key, v, rule?.upTo ?? null, t.name);
+                      }}
+                    />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <TextInput
+                      key={`u-${key}-${rule?.upTo ?? ""}`}
+                      disabled={ro || !rule}
+                      inputMode="numeric"
+                      className="w-24"
+                      placeholder={rule ? String(rule.low * 2) : "—"}
+                      defaultValue={rule?.upTo ?? ""}
+                      aria-label={`${t.name}: order up to`}
+                      onBlur={(e) => {
+                        const v = num(e.target.value);
+                        if (rule && (v ?? null) !== (rule.upTo ?? null))
+                          save(key, rule.low, v, t.name);
+                      }}
+                    />
+                  </td>
+                  <td className="py-2 text-xs text-muted-foreground">
+                    {mine.length}
+                    {low ? (
+                      <span className="ml-1 font-semibold text-warning-foreground dark:text-warning">
+                        · {low} low
+                      </span>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }

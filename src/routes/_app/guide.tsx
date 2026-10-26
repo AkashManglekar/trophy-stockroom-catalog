@@ -145,6 +145,72 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: "multivendor",
+    title: "Same product from several vendors",
+    body: (
+      <Ul>
+        <li>
+          A trophy you already stock, billed by a second vendor under their own code: on the bill
+          line pick <b>Same as an existing product</b> and choose your code. It stays one product —
+          one listing on Products and the catalogue — and that vendor's code maps to it from then
+          on.
+        </li>
+        <li>
+          The product's cost and selling price follow the <b>lowest current price</b> among the
+          vendors you buy from (each vendor's latest bill). Vendors marked Paused, Exited or
+          Archived don't count.
+        </li>
+        <li>
+          Product page → <b>Sourcing</b>: every vendor, their code, latest and average price, units
+          bought, and who is <b>best to order from next</b>.
+        </li>
+        <li>
+          Already created two codes for the same item? Open the one to retire →{" "}
+          <b>Same item as another code?</b> → pick the code to keep → Link. Stock, bills, vendor
+          prices, photos and sales move across; the old code still finds it in Zoho and on bills.
+        </li>
+      </Ul>
+    ),
+  },
+  {
+    id: "reorder",
+    title: "Low-stock reminders and what to order",
+    body: (
+      <Ul>
+        <li>
+          Settings → <b>Low-stock reminders</b>: per category, "remind at or below" and "order up
+          to". A product can override it on its page (blank = category, 0 = never).
+        </li>
+        <li>
+          Dashboard → <b>Order next</b> lists what's low, grouped by the best vendor, with a
+          suggested quantity (up to your target, at least the vendor's MOQ). <b>Copy order</b> gives
+          a message for WhatsApp or email.
+        </li>
+        <li>
+          <b>Ordered</b> hides it until that stock arrives on a bill; <b>Ignore</b> hides it for a
+          week, 30 days, 3 months or for good.
+        </li>
+      </Ul>
+    ),
+  },
+  {
+    id: "drafts",
+    title: "Park a bill as a draft",
+    body: (
+      <Ul>
+        <li>
+          Stuck on a bill (price query, missing items)? <b>Save draft</b> at the bottom, note what's
+          pending, and the page clears for the next bill.
+        </li>
+        <li>
+          Saved drafts sit at the top of Receive for the whole team. <b>Open</b> picks it up where
+          you left it (the bill you're on is saved first); receiving or submitting it removes the
+          draft.
+        </li>
+      </Ul>
+    ),
+  },
+  {
     id: "newprod",
     title: "Set up new products correctly",
     body: (

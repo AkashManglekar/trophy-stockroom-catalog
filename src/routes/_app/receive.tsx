@@ -28,6 +28,7 @@ import {
   designCode,
   errMsg,
   priceFor,
+  repriceProducts,
   useFamilies,
   useInvalidate,
   usePhotoMap,
@@ -36,10 +37,12 @@ import {
   useRefData,
   usePhotoUrls,
   useSubmissions,
+  useSources,
   useVendorCodes,
   useVendors,
   variantLabel,
 } from "@/lib/data";
+import { pricingBasis, sourcesFor } from "@/lib/sourcing";
 import {
   blankVendor,
   newDraft,
@@ -82,6 +85,13 @@ import { PhotoButtons, Thumb } from "@/components/photos";
 import { VendorForm, vendorRow } from "@/components/VendorForm";
 import { VariantGroupCard } from "@/components/VariantGroupCard";
 import {
+  SavedDrafts,
+  dropSavedDraft,
+  hasWork,
+  parkDraft,
+  vendorNameOf,
+} from "@/components/BillDrafts";
+import {
   applyGroup,
   groupFromLine,
   removeGroup,
@@ -104,12 +114,13 @@ type Committed = {
 };
 
 function ReceivePage() {
-  const { canContribute, canEdit, canPublish, canApprove } = useAuth();
+  const { canContribute, canEdit, canPublish, canApprove, email } = useAuth();
   const ref = useRefData();
   const products = useProducts();
   const families = useFamilies();
   const vendors = useVendors();
   const vcodes = useVendorCodes();
+  const sources = useSources();
   const photoMap = usePhotoMap();
   const counters = useQuery({
     queryKey: ["counters"],
@@ -129,6 +140,8 @@ function ReceivePage() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [done, setDone] = useState<Committed | null>(null);
+  const [parkOpen, setParkOpen] = useState(false);
+  const [parkNote, setParkNote] = useState("");
   const reviewing = !!draft.reviewOf && canApprove;
   const mode: "publish" | "submit" | "approve" = reviewing
     ? "approve"
@@ -143,6 +156,8 @@ function ReceivePage() {
         families: families.data ?? [],
         vendorCodes: vcodes.data ?? [],
         counters: counters.data ?? {},
+        sources: sources.data ?? [],
+        vendors: vendors.data ?? [],
       }
     : null;
   const plans = useMemo(() => (ctx ? planDraft(draft, ctx) : {}), [draft, ctx]);
@@ -436,9 +451,11 @@ function ReceivePage() {
         };
         if (P.kind !== "new") {
           const prod = prodById.get(P.productId!)!;
+          // Priced on the lowest current vendor price: this bill's, or another vendor's if cheaper.
+          const basis = basisOf(ctx, prod.id, vendorId, cost, extra);
           const pr =
             draft.type === "bill" && cost != null
-              ? priceFor(knownPricing(prod, l, cost, extra), ctx.ref)
+              ? priceFor(knownPricing(prod, l, basis.cost, basis.extra), ctx.ref)
               : null;
           const lock = mrpLock(prod, l);
           return {
@@ -497,7 +514,13 @@ function ReceivePage() {
         total_cost: draft.type === "bill" ? c2.total : null,
         lines,
       };
-      const savedDraft = { ...draft, vendorId, reviewOf: undefined, resubmitOf: undefined };
+      const savedDraft = {
+        ...draft,
+        vendorId,
+        reviewOf: undefined,
+        resubmitOf: undefined,
+        savedId: undefined,
+      };
       if (mode === "submit") {
         const { error } = await supabase.rpc("submit_bill", {
           p_payload: payload,
@@ -515,9 +538,10 @@ function ReceivePage() {
           ...(draft.resubmitOf ? { p_replaces: draft.resubmitOf } : {}),
         });
         if (error) throw new Error(error.message);
+        await dropSavedDraft(draft.savedId);
         setDraft(newDraft());
         setConfirming(false);
-        await inv("submissions", "families");
+        await inv("submissions", "families", "bill_drafts");
         toast.success("Sent for approval. Stock is added once it's approved.");
         return;
       }
@@ -543,12 +567,44 @@ function ReceivePage() {
         productIds: ids,
         label: `${RECEIPT_TYPES[draft.type].label} ${draft.billNo}`.trim(),
       });
+      await dropSavedDraft(draft.savedId);
       setDraft(newDraft());
       setConfirming(false);
-      await inv("products", "families", "vendor_codes", "receipts", "counters", "submissions");
+      await inv(
+        "products",
+        "families",
+        "vendor_codes",
+        "receipts",
+        "counters",
+        "submissions",
+        "bill_drafts",
+      );
       toast.success(
         `${mode === "approve" ? "Approved & received" : "Received"} — ${res.created.length} new code${res.created.length === 1 ? "" : "s"}`,
       );
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // ---------- drafts ----------
+  async function park() {
+    setBusy("Saving draft…");
+    try {
+      await parkDraft(draft, {
+        vendorName: vendorNameOf(draft, vendors.data ?? []),
+        value: sum.value,
+        email,
+        note: parkNote,
+      });
+      setDraft(newDraft());
+      setConfirming(false);
+      setParkOpen(false);
+      setParkNote("");
+      await inv("bill_drafts");
+      toast.success("Saved to Drafts — the page is clear for the next bill");
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
@@ -624,6 +680,8 @@ function ReceivePage() {
 
       <BillApprovals vendors={vend} prodById={prodById} draftBusy={draft.lines.length > 0} />
 
+      <SavedDrafts current={draft} currentValue={sum.value} vendors={vend} />
+
       {done && (
         <DoneCard
           done={done}
@@ -657,7 +715,7 @@ function ReceivePage() {
         </div>
         <p className="text-sm text-muted-foreground">
           {draft.type === "bill"
-            ? "Stock bought from a vendor. Cost and preferred vendor update to this bill."
+            ? "Stock bought from a vendor. A product already bought from another vendor is linked to the same code; its price follows the lowest current vendor price."
             : "Items already on the shelf that don't have a code yet and no vendor bill. Each line creates a new product code with its stock. For products that already have a code — opening stock, customer returns, recounts — use Products → Adjust stock."}
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr]">
@@ -991,14 +1049,30 @@ function ReceivePage() {
                 variant="ghost"
                 className="rounded-full"
                 onClick={() => {
-                  if (confirm("Discard this draft?")) {
+                  if (
+                    confirm(
+                      draft.savedId
+                        ? "Close this bill without saving changes? Its saved copy stays in Drafts."
+                        : "Discard this bill?",
+                    )
+                  ) {
                     setDraft(newDraft());
                     setConfirming(false);
                   }
                 }}
               >
-                Discard
+                {draft.savedId ? "Close" : "Discard"}
               </Button>
+              {canContribute && (
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={!!busy || !hasWork(draft)}
+                  onClick={() => setParkOpen((v) => !v)}
+                >
+                  Save draft
+                </Button>
+              )}
               {confirming ? (
                 <>
                   <Button
@@ -1031,6 +1105,32 @@ function ReceivePage() {
               )}
             </div>
           </div>
+          {parkOpen && (
+            <div className="grid gap-2 rounded-lg border bg-muted/60 p-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <Field
+                label="What's pending? (optional)"
+                hint="Saved in Drafts for the team. The page clears so you can start the next bill."
+              >
+                <TextInput
+                  autoFocus
+                  value={parkNote}
+                  placeholder="e.g. vendor to confirm GST, 2 items short"
+                  onChange={(e) => setParkNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") park();
+                  }}
+                />
+              </Field>
+              <div className="flex gap-2">
+                <Button variant="ghost" className="rounded-full" onClick={() => setParkOpen(false)}>
+                  Cancel
+                </Button>
+                <Button className="rounded-full" disabled={!!busy} onClick={park}>
+                  Save & start next bill
+                </Button>
+              </div>
+            </div>
+          )}
           {!ready && !busy && (
             <p className="text-sm text-warning-foreground dark:text-warning">
               {vendorProblem ||
@@ -1254,10 +1354,19 @@ function LineCard({
             prod.unit_cost != null &&
             (num(l.cost) !== prod.unit_cost || extra != null) &&
             (() => {
-              const np = priceFor(knownPricing(prod, l, num(l.cost), extra), ref);
+              const b = basisOf(ctx, prod.id, draft.vendorId, num(l.cost), extra);
+              const np = priceFor(knownPricing(prod, l, b.cost, b.extra), ref);
+              const other = ctx.vendors?.find((v) => v.id === b.vendorId)?.display_name;
+              if (b.other)
+                return (
+                  <Pill tone="info">
+                    price stays on {other} {inr(b.cost)} (lowest vendor) · {inr(np?.mrp)}
+                  </Pill>
+                );
+              if (b.cost === prod.unit_cost && np?.mrp === prod.mrp) return null;
               return (
                 <Pill tone="warn">
-                  cost {inr(prod.unit_cost)} → {inr(num(l.cost))} · price {inr(prod.mrp)} →{" "}
+                  cost {inr(prod.unit_cost)} → {inr(b.cost)} · price {inr(prod.mrp)} →{" "}
                   {inr(np?.mrp)}
                 </Pill>
               );
@@ -1268,6 +1377,7 @@ function LineCard({
           >
             Not this product?
           </button>
+          {isBill && <OtherVendors ctx={ctx} productId={prod.id} vendorId={draft.vendorId} />}
         </div>
       )}
 
@@ -1324,8 +1434,12 @@ function LineCard({
                   <Code>{prod.code}</Code>
                   <span className="wrap-any text-sm">{prod.friendly_name}</span>
                   <span className="text-xs text-muted-foreground">
-                    this vendor's code will map here from now on
+                    this vendor's code will map here from now on — one product, sourced from several
+                    vendors
                   </span>
+                  {isBill && (
+                    <OtherVendors ctx={ctx} productId={prod.id} vendorId={draft.vendorId} />
+                  )}
                 </div>
               )}
             </div>
@@ -1661,6 +1775,7 @@ function RecentReceipts({
 }) {
   const q = useReceipts();
   const inv = useInvalidate();
+  const refQ = useRefData();
   const [open, setOpen] = useState<string | null>(null);
   const [confirmRev, setConfirmRev] = useState<string | null>(null);
   const list = q.data ?? [];
@@ -1675,6 +1790,18 @@ function RecentReceipts({
     if (error) {
       toast.error(error.message);
       return;
+    }
+    // Without this bill, a product may now be priced on another vendor's price.
+    const ids = [
+      ...new Set(
+        (list.find((r) => r.id === id)?.lines ?? [])
+          .map((l) => l.product_id)
+          .filter((x): x is string => !!x),
+      ),
+    ];
+    if (ids.length && refQ.data) {
+      const fresh = await supabase.from("products").select("*").in("id", ids);
+      if (fresh.data) await repriceProducts(fresh.data, refQ.data);
     }
     toast.success("Receipt reversed");
     inv("receipts", "products");
@@ -2038,6 +2165,53 @@ function mrpLock(prod: Product, l: DraftLine): number | null {
     return null;
   return prod.price_mode === "mrp" && prod.price_value ? prod.price_value : prod.mrp;
 }
+function basisOf(
+  ctx: PlanCtx,
+  productId: string,
+  vendorId: string,
+  cost: number | null,
+  extra: number | null,
+) {
+  return pricingBasis(
+    productId,
+    vendorId === "NEW" ? "" : vendorId,
+    cost,
+    extra,
+    ctx.sources ?? [],
+    ctx.vendors ?? [],
+  );
+}
+
+/** Other vendors that supply this product, so a second vendor's bill shows the comparison. */
+function OtherVendors({
+  ctx,
+  productId,
+  vendorId,
+}: {
+  ctx: PlanCtx;
+  productId: string;
+  vendorId: string;
+}) {
+  const rows = sourcesFor(productId, ctx.sources ?? [], ctx.vendors ?? []).filter(
+    (s) => s.vendor_id !== vendorId && s.last_cost != null,
+  );
+  if (!rows.length) return null;
+  return (
+    <p className="w-full text-xs text-muted-foreground">
+      Also from{" "}
+      {rows.map((s, i) => (
+        <span key={s.vendor_id}>
+          {i ? ", " : ""}
+          <b className="text-foreground">{s.vendor?.display_name ?? "vendor"}</b> {inr(s.last_cost)}
+          {s.vendor_code ? ` (${s.vendor_code})` : ""}
+          {!s.active ? " — not buying" : ""}
+        </span>
+      ))}
+      . The lowest current price sets the selling price.
+    </p>
+  );
+}
+
 function knownPricing(prod: Product, l: DraftLine, cost: number | null, extra: number | null) {
   const lock = mrpLock(prod, l);
   return {
