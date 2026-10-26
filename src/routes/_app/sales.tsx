@@ -198,7 +198,7 @@ function SalesPage() {
               ? new Date(st.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
               : "Never"
           }
-          sub={st?.configured ? "Zoho connected" : "Zoho not connected"}
+          sub={st?.source === "app" ? "Zoho connected" : "Zoho not connected"}
         />
         <Tile
           k="Need a product"
@@ -208,10 +208,8 @@ function SalesPage() {
         />
       </div>
 
-      {st && (!st.configured || st.source === "app") && (
-        <ZohoConnect status={st} onChange={() => inv("zoho-status")} />
-      )}
-      {canPublish && st?.configured && !st.at && (
+      {st && <ZohoConnect status={st} onChange={() => inv("zoho-status")} />}
+      {canPublish && st?.source === "app" && !st.at && (
         <Card>
           <CardTitle>First sync</CardTitle>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr] sm:items-end">
@@ -361,7 +359,7 @@ function ZohoConnect({ status, onChange }: { status: SyncResult; onChange: () =>
   const [sure, setSure] = useState(false);
   const SCOPE = "ZohoBooks.invoices.READ,ZohoBooks.creditnotes.READ";
 
-  if (status.configured)
+  if (status.source === "app")
     return (
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -415,6 +413,12 @@ function ZohoConnect({ status, onChange }: { status: SyncResult; onChange: () =>
         </p>
       ) : (
         <>
+          {status.source === "secrets" && (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              Zoho keys saved earlier in Lovable aren't working. Connect here instead — this
+              replaces them.
+            </p>
+          )}
           <ol className="grid list-decimal gap-2 pl-5 text-sm">
             <li>
               Open{" "}

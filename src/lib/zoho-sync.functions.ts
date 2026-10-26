@@ -69,19 +69,7 @@ const urls = (dc: string) => {
 };
 
 async function cfg(): Promise<Cfg> {
-  const id = env("ZOHO_CLIENT_ID");
-  const secret = env("ZOHO_CLIENT_SECRET");
-  const refresh = env("ZOHO_REFRESH_TOKEN");
-  if (id && secret && refresh)
-    return {
-      ok: true,
-      id,
-      secret,
-      refresh,
-      org: env("ZOHO_ORG_ID") || DEFAULT_ORG,
-      ...urls(env("ZOHO_DC") || "in"),
-      source: "secrets",
-    };
+  // The connection made in the app wins; server secrets are only a fallback.
   const db = await admin();
   const { data: row } = await db.from("zoho_connection").select("*").eq("id", 1).maybeSingle();
   if (row)
@@ -97,6 +85,19 @@ async function cfg(): Promise<Cfg> {
       connectedAt: row.connected_at,
       connectedBy: row.connected_by_email,
     };
+  const id = env("ZOHO_CLIENT_ID");
+  const secret = env("ZOHO_CLIENT_SECRET");
+  const refresh = env("ZOHO_REFRESH_TOKEN");
+  if (id && secret && refresh)
+    return {
+      ok: true,
+      id,
+      secret,
+      refresh,
+      org: env("ZOHO_ORG_ID") || DEFAULT_ORG,
+      ...urls(env("ZOHO_DC") || "in"),
+      source: "secrets",
+    };
   return { ok: false, org: DEFAULT_ORG, ...urls("in"), source: null };
 }
 
@@ -110,7 +111,10 @@ async function accessToken(c: Cfg) {
   });
   const r = await fetch(`${c.accounts}/oauth/v2/token`, { method: "POST", body });
   const j = (await r.json()) as { access_token?: string; expires_in?: number; error?: string };
-  if (!j.access_token) throw new Error(`Zoho sign-in failed: ${j.error ?? r.status}`);
+  if (!j.access_token)
+    throw new Error(
+      `Zoho sign-in failed (${j.error ?? r.status}). Reconnect Zoho Books on the Sales page.`,
+    );
   token = {
     value: j.access_token,
     exp: Date.now() + (j.expires_in ?? 3600) * 1000,
