@@ -101,7 +101,7 @@ export function OrderNext({
     }
     decide.sort((a, b) => a.p.stock - a.level - (b.p.stock - b.level) || b.sold30 - a.sold30);
     const configured =
-      Object.keys(s.reorder).length > 0 || products.some((p) => (p.reorder_point ?? 0) > 0);
+      Object.keys(s.reorder ?? {}).length > 0 || products.some((p) => (p.reorder_point ?? 0) > 0);
     return { decide, ordered, ignored, configured };
   }, [products, ref_, sources.data, vendors.data, flags.data, ratings, sold30]);
 

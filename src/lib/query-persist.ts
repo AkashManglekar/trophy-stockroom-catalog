@@ -5,8 +5,9 @@ import { dehydrate, hydrate, type QueryClient } from "@tanstack/react-query";
  * then refreshes in the background. Cleared on sign-out.
  */
 // v1 could hold data that doesn't survive saving (the Guide's ticks); bumping the key drops it.
-const KEY = "sgn-stockroom-cache-v2";
-const OLD_KEYS = ["sgn-stockroom-cache-v1"];
+// v3: settings gained low-stock levels; copies saved by older versions are dropped.
+const KEY = "sgn-stockroom-cache-v3";
+const OLD_KEYS = ["sgn-stockroom-cache-v1", "sgn-stockroom-cache-v2"];
 /** Only plain lists/records with a stable shape are kept on the device. */
 const KEEP = new Set([
   "ref",

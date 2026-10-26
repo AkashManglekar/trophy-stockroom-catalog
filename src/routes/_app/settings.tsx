@@ -948,7 +948,7 @@ function ReorderSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
   const products = useProducts();
   const ps = products.data ?? [];
   async function save(key: string, low: number | null, upTo: number | null, name: string) {
-    const next = { ...s.reorder };
+    const next = { ...(s.reorder ?? {}) };
     if (!low || low <= 0) delete next[key];
     else next[key] = { low, upTo: upTo && upTo > low ? upTo : null };
     try {
@@ -982,7 +982,7 @@ function ReorderSettings({ ref_, ro }: { ref_: RefData; ro: boolean }) {
           <tbody>
             {types.map((t) => {
               const key = `${t.div}:${t.code}`;
-              const rule = s.reorder[key];
+              const rule = s.reorder?.[key];
               const mine = ps.filter(
                 (p) => typeKey(p) === key && p.status !== "Archived" && p.status !== "Discontinued",
               );

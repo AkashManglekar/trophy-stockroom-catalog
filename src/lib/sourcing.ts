@@ -100,7 +100,7 @@ export function reorderLevel(
 ): { level: number; from: "product" | "category" } | null {
   if (p.reorder_point != null)
     return p.reorder_point > 0 ? { level: p.reorder_point, from: "product" } : null;
-  const r = settings.reorder[typeKey(p)];
+  const r = settings.reorder?.[typeKey(p)];
   return r && r.low > 0 ? { level: r.low, from: "category" } : null;
 }
 
@@ -112,7 +112,7 @@ export function suggestQty(
 ): number {
   const lv = reorderLevel(p, settings);
   if (!lv) return 0;
-  const upTo = Number(settings.reorder[typeKey(p)]?.upTo ?? 0);
+  const upTo = Number(settings.reorder?.[typeKey(p)]?.upTo ?? 0);
   const target = upTo > lv.level ? upTo : lv.level * 2;
   const need = Math.max(1, target - Math.max(0, p.stock));
   const min = num(moq ?? null) ?? 0;

@@ -300,7 +300,7 @@ export function ReorderLevelField({
   ro: boolean;
   onSave: (v: number | null) => void;
 }) {
-  const cat = ref_.settings.reorder[`${p.div}:${p.type}`]?.low;
+  const cat = ref_.settings.reorder?.[`${p.div}:${p.type}`]?.low;
   return (
     <Field
       label="Low-stock alert at"
