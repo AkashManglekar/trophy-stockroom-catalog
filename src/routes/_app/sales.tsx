@@ -8,7 +8,13 @@ import { useAuth } from "@/lib/auth";
 import { inr, type SaleLine } from "@/lib/domain";
 import { errMsg, useInvalidate, useProducts, useSales } from "@/lib/data";
 import { parseSalesRows } from "@/lib/sales";
-import { syncZohoSales, zohoSyncStatus } from "@/lib/zoho-sync.functions";
+import {
+  connectZoho,
+  disconnectZoho,
+  syncZohoSales,
+  zohoSyncStatus,
+  type SyncResult,
+} from "@/lib/zoho-sync.functions";
 import {
   Card,
   CardTitle,
@@ -202,33 +208,8 @@ function SalesPage() {
         />
       </div>
 
-      {st && !st.configured && (
-        <Card>
-          <CardTitle>Connect Zoho Books (one time)</CardTitle>
-          <ol className="grid list-decimal gap-1.5 pl-5 text-sm">
-            <li>
-              Open the Zoho API console (api-console.zoho.in) → <b>Self Client</b> → create it.
-            </li>
-            <li>
-              Generate a code with scope{" "}
-              <Code>ZohoBooks.invoices.READ,ZohoBooks.creditnotes.READ</Code>, then exchange it for
-              a <b>refresh token</b>.
-            </li>
-            <li>
-              In Lovable → Cloud → Secrets add <Code>ZOHO_CLIENT_ID</Code>,{" "}
-              <Code>ZOHO_CLIENT_SECRET</Code>, <Code>ZOHO_REFRESH_TOKEN</Code> (organisation
-              60089715531 is the default).
-            </li>
-            <li>
-              In Zoho Books turn on <b>SKU</b> for items and use the stockroom SKUs (TC-1005-11…) —
-              or map each Zoho item once below.
-            </li>
-          </ol>
-          <Notice>
-            Until then, export Invoices (and Credit Notes) from Zoho Books as CSV/XLSX and use{" "}
-            <b>Import Zoho export</b>. Re-importing the same file never double-counts.
-          </Notice>
-        </Card>
+      {st && (!st.configured || st.source === "app") && (
+        <ZohoConnect status={st} onChange={() => inv("zoho-status")} />
       )}
       {canPublish && st?.configured && !st.at && (
         <Card>
@@ -367,5 +348,169 @@ function Tile({ k, v, sub, warn }: { k: string; v: string; sub?: string; warn?: 
       <b className="wrap-any text-lg tabular-nums">{v}</b>
       {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
     </div>
+  );
+}
+
+/** One-time Zoho Books connection, done by the owner from here — no server secrets to edit. */
+function ZohoConnect({ status, onChange }: { status: SyncResult; onChange: () => void }) {
+  const { isOwner } = useAuth();
+  const [clientId, setClientId] = useState("");
+  const [secret, setSecret] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sure, setSure] = useState(false);
+  const SCOPE = "ZohoBooks.invoices.READ,ZohoBooks.creditnotes.READ";
+
+  if (status.configured)
+    return (
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Zoho Books connected</CardTitle>
+          <Pill tone="ok">{status.orgName ?? "Organisation 60089715531"}</Pill>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Connected
+          {status.connectedAt
+            ? ` on ${new Date(status.connectedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}`
+            : ""}
+          {status.connectedBy ? ` by ${status.connectedBy}` : ""}. Invoices take stock out and
+          credit notes put it back, automatically.
+        </p>
+        {isOwner && (
+          <Button
+            size="sm"
+            variant={sure ? "destructive" : "ghost"}
+            className="w-fit rounded-full"
+            disabled={busy}
+            onClick={async () => {
+              if (!sure) {
+                setSure(true);
+                return;
+              }
+              setBusy(true);
+              try {
+                await disconnectZoho();
+                toast.success("Zoho Books disconnected");
+                onChange();
+              } catch (e) {
+                toast.error(errMsg(e));
+              } finally {
+                setBusy(false);
+                setSure(false);
+              }
+            }}
+          >
+            {sure ? "Yes, disconnect" : "Disconnect"}
+          </Button>
+        )}
+      </Card>
+    );
+
+  return (
+    <Card>
+      <CardTitle>Connect Zoho Books (one time, about 3 minutes)</CardTitle>
+      {!isOwner ? (
+        <p className="text-sm text-muted-foreground">
+          The owner connects Zoho Books from this page. Until then, use Import Zoho export.
+        </p>
+      ) : (
+        <>
+          <ol className="grid list-decimal gap-2 pl-5 text-sm">
+            <li>
+              Open{" "}
+              <a
+                href="https://api-console.zoho.in/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-primary underline-offset-2 hover:underline"
+              >
+                api-console.zoho.in
+              </a>{" "}
+              (signed in to the Zoho account that owns Sportagon Books) → <b>Add Client</b> →{" "}
+              <b>Self Client</b> → <b>Create</b>. Open the <b>Client Secret</b> tab and copy the
+              Client ID and Client Secret below.
+            </li>
+            <li>
+              Open the <b>Generate Code</b> tab. In <b>Scope</b> paste{" "}
+              <button
+                type="button"
+                className="inline"
+                onClick={() =>
+                  navigator.clipboard?.writeText(SCOPE).then(() => toast.success("Scope copied"))
+                }
+              >
+                <Code>{SCOPE}</Code>
+              </button>
+              , time duration <b>10 minutes</b>, description “Stockroom” → <b>Create</b>, choose the
+              Sportagon organisation, and copy the code.
+            </li>
+            <li>
+              Paste it below and press <b>Connect</b> within 10 minutes.
+            </li>
+          </ol>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Client ID">
+              <TextInput
+                value={clientId}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="1000.XXXX…"
+                onChange={(e) => setClientId(e.target.value)}
+              />
+            </Field>
+            <Field label="Client Secret">
+              <TextInput
+                type="password"
+                value={secret}
+                autoComplete="off"
+                onChange={(e) => setSecret(e.target.value)}
+              />
+            </Field>
+            <Field label="Generated code">
+              <TextInput
+                value={code}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="1000.xxxx…"
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              className="rounded-full"
+              disabled={busy || !clientId.trim() || !secret.trim() || !code.trim()}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const r = await connectZoho({
+                    data: { clientId, clientSecret: secret, code },
+                  });
+                  toast.success(`Zoho Books connected${r.orgName ? ` — ${r.orgName}` : ""}`);
+                  setClientId("");
+                  setSecret("");
+                  setCode("");
+                  onChange();
+                } catch (e) {
+                  toast.error(errMsg(e));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Connecting…" : "Connect"}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Read-only access to invoices and credit notes. Keys are stored on the server only —
+              never shown again or sent to the browser.
+            </span>
+          </div>
+        </>
+      )}
+      <Notice>
+        No connection yet? Export Invoices (and Credit Notes) from Zoho Books as CSV/XLSX and use{" "}
+        <b>Import Zoho export</b>. Re-importing the same file never double-counts.
+      </Notice>
+    </Card>
   );
 }

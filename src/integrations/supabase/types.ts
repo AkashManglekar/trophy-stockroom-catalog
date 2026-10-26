@@ -344,6 +344,42 @@ export type Database = {
         }
         Relationships: []
       }
+      zoho_connection: {
+        Row: {
+          id: number
+          client_id: string
+          client_secret: string
+          refresh_token: string
+          dc: string
+          org_id: string
+          org_name: string | null
+          connected_at: string
+          connected_by_email: string | null
+        }
+        Insert: {
+          id?: number
+          client_id: string
+          client_secret: string
+          refresh_token: string
+          dc?: string
+          org_id?: string
+          org_name?: string | null
+          connected_at?: string
+          connected_by_email?: string | null
+        }
+        Update: {
+          id?: number
+          client_id?: string
+          client_secret?: string
+          refresh_token?: string
+          dc?: string
+          org_id?: string
+          org_name?: string | null
+          connected_at?: string
+          connected_by_email?: string | null
+        }
+        Relationships: []
+      }
       zoho_item_map: {
         Row: {
           created_at: string

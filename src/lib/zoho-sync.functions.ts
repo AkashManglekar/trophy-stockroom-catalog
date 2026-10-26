@@ -6,10 +6,9 @@ import { lineKey } from "@/lib/sales";
  * Zoho Books → Stockroom sales sync. Reads invoices and credit notes changed since the last run,
  * and lets the database reconcile stock (idempotent: re-running never double-counts).
  *
- * Needs these secrets on the server (Lovable → Cloud → Secrets):
- *   ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN  (Zoho API console, "Self Client")
- *   ZOHO_ORG_ID   (default 60089715531 — Sportagon Technologies Private Limited)
- *   ZOHO_DC       (default "in" → accounts.zoho.in / www.zohoapis.in)
+ * Credentials come from the owner's "Connect Zoho Books" form (stored in public.zoho_connection,
+ * readable only by the server), or — if set — these server secrets:
+ *   ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN, ZOHO_ORG_ID, ZOHO_DC
  * Scopes: ZohoBooks.invoices.READ, ZohoBooks.creditnotes.READ
  */
 
@@ -40,30 +39,69 @@ export type SyncResult = {
   since: string | null;
   at: string | null;
   error?: string | undefined;
+  /** Where the connection comes from: the in-app form or server secrets. */
+  source?: "app" | "secrets" | null | undefined;
+  orgName?: string | null | undefined;
+  connectedAt?: string | null | undefined;
+  connectedBy?: string | null | undefined;
 };
 
 const env = (k: string) => process.env[k];
 const DEFAULT_ORG = "60089715531";
-let token: { value: string; exp: number } | null = null;
+let token: { value: string; exp: number; refresh: string } | null = null;
 
-function cfg() {
+type Cfg = {
+  ok: boolean;
+  id?: string | undefined;
+  secret?: string | undefined;
+  refresh?: string | undefined;
+  org: string;
+  accounts: string;
+  api: string;
+  source: "app" | "secrets" | null;
+  orgName?: string | null | undefined;
+  connectedAt?: string | null | undefined;
+  connectedBy?: string | null | undefined;
+};
+const urls = (dc: string) => {
+  const d = (dc || "in").replace(/^\./, "");
+  return { accounts: `https://accounts.zoho.${d}`, api: `https://www.zohoapis.${d}/books/v3` };
+};
+
+async function cfg(): Promise<Cfg> {
   const id = env("ZOHO_CLIENT_ID");
   const secret = env("ZOHO_CLIENT_SECRET");
   const refresh = env("ZOHO_REFRESH_TOKEN");
-  const dc = (env("ZOHO_DC") || "in").replace(/^\./, "");
-  return {
-    ok: !!(id && secret && refresh),
-    id,
-    secret,
-    refresh,
-    org: env("ZOHO_ORG_ID") || DEFAULT_ORG,
-    accounts: `https://accounts.zoho.${dc}`,
-    api: `https://www.zohoapis.${dc}/books/v3`,
-  };
+  if (id && secret && refresh)
+    return {
+      ok: true,
+      id,
+      secret,
+      refresh,
+      org: env("ZOHO_ORG_ID") || DEFAULT_ORG,
+      ...urls(env("ZOHO_DC") || "in"),
+      source: "secrets",
+    };
+  const db = await admin();
+  const { data: row } = await db.from("zoho_connection").select("*").eq("id", 1).maybeSingle();
+  if (row)
+    return {
+      ok: true,
+      id: row.client_id,
+      secret: row.client_secret,
+      refresh: row.refresh_token,
+      org: row.org_id || DEFAULT_ORG,
+      ...urls(row.dc),
+      source: "app",
+      orgName: row.org_name,
+      connectedAt: row.connected_at,
+      connectedBy: row.connected_by_email,
+    };
+  return { ok: false, org: DEFAULT_ORG, ...urls("in"), source: null };
 }
 
-async function accessToken(c: ReturnType<typeof cfg>) {
-  if (token && token.exp > Date.now() + 60_000) return token.value;
+async function accessToken(c: Cfg) {
+  if (token && token.refresh === c.refresh && token.exp > Date.now() + 60_000) return token.value;
   const body = new URLSearchParams({
     refresh_token: c.refresh!,
     client_id: c.id!,
@@ -73,11 +111,15 @@ async function accessToken(c: ReturnType<typeof cfg>) {
   const r = await fetch(`${c.accounts}/oauth/v2/token`, { method: "POST", body });
   const j = (await r.json()) as { access_token?: string; expires_in?: number; error?: string };
   if (!j.access_token) throw new Error(`Zoho sign-in failed: ${j.error ?? r.status}`);
-  token = { value: j.access_token, exp: Date.now() + (j.expires_in ?? 3600) * 1000 };
+  token = {
+    value: j.access_token,
+    exp: Date.now() + (j.expires_in ?? 3600) * 1000,
+    refresh: c.refresh!,
+  };
   return token.value;
 }
 
-async function zget<T>(c: ReturnType<typeof cfg>, path: string, q: Record<string, string>) {
+async function zget<T>(c: Cfg, path: string, q: Record<string, string>) {
   const url = new URL(`${c.api}${path}`);
   url.searchParams.set("organization_id", c.org);
   for (const [k, v] of Object.entries(q)) url.searchParams.set(k, v);
@@ -113,7 +155,7 @@ type ZLine = {
   item_total?: number;
 };
 
-async function fetchDocs(c: ReturnType<typeof cfg>, kind: "invoice" | "credit", since: string) {
+async function fetchDocs(c: Cfg, kind: "invoice" | "credit", since: string) {
   const list = kind === "invoice" ? "/invoices" : "/creditnotes";
   const key = kind === "invoice" ? "invoices" : "creditnotes";
   const one = kind === "invoice" ? "invoice" : "creditnote";
@@ -171,11 +213,15 @@ async function syncState(db: Awaited<ReturnType<typeof admin>>) {
 export const zohoSyncStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<SyncResult> => {
-    const c = cfg();
+    const c = await cfg();
     const db = await admin();
     const { s } = await syncState(db);
     return {
       configured: c.ok,
+      source: c.source,
+      orgName: c.orgName ?? null,
+      connectedAt: c.connectedAt ?? null,
+      connectedBy: c.connectedBy ?? null,
       ran: false,
       docs: 0,
       lines: 0,
@@ -190,7 +236,7 @@ export const syncZohoSales = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { force?: boolean; fromDate?: string | undefined }) => d)
   .handler(async ({ data, context }): Promise<SyncResult> => {
-    const c = cfg();
+    const c = await cfg();
     const db = await admin();
     const { data: me } = await db
       .from("user_roles")
@@ -259,4 +305,121 @@ export const syncZohoSales = createServerFn({ method: "POST" })
     } catch (e) {
       return { ...base, error: e instanceof Error ? e.message : String(e) };
     }
+  });
+
+async function requireOwner(userId: string) {
+  const db = await admin();
+  const { data: me } = await db
+    .from("user_roles")
+    .select("role,email")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (me?.role !== "owner") throw new Error("Only the owner can connect Zoho Books");
+  return { db, email: (me.email as string | null) ?? null };
+}
+
+/**
+ * Owner pastes the Self Client's Client ID, Client Secret and a freshly generated code; the server
+ * exchanges the code for a refresh token, checks it can read invoices, and stores it privately.
+ */
+export const connectZoho = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(
+    (d: { clientId: string; clientSecret: string; code: string; dc?: string | undefined }) => d,
+  )
+  .handler(async ({ data, context }): Promise<{ orgName: string | null }> => {
+    const { db, email } = await requireOwner(context.userId);
+    const clientId = String(data.clientId ?? "").trim();
+    const clientSecret = String(data.clientSecret ?? "").trim();
+    const code = String(data.code ?? "").trim();
+    const dc = /^[a-z.]{2,8}$/.test(String(data.dc ?? "in")) ? String(data.dc ?? "in") : "in";
+    if (!clientId || !clientSecret || !code)
+      throw new Error("Paste the Client ID, Client Secret and the generated code");
+    const u = urls(dc);
+    const r = await fetch(`${u.accounts}/oauth/v2/token`, {
+      method: "POST",
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "authorization_code",
+      }),
+    });
+    const j = (await r.json().catch(() => ({}))) as {
+      refresh_token?: string;
+      access_token?: string;
+      error?: string;
+    };
+    if (!j.refresh_token) {
+      const why =
+        j.error === "invalid_code"
+          ? "The code has expired or was already used — generate a new one (it lasts 10 minutes) and paste it straight away."
+          : j.error === "invalid_client"
+            ? "Client ID or Client Secret is wrong — copy them again from the Self Client."
+            : `Zoho didn't accept it (${j.error ?? r.status}).`;
+      throw new Error(why);
+    }
+    // Check the token can actually read this organisation's invoices before saving it.
+    const c: Cfg = {
+      ok: true,
+      id: clientId,
+      secret: clientSecret,
+      refresh: j.refresh_token,
+      org: DEFAULT_ORG,
+      ...u,
+      source: "app",
+    };
+    token = null;
+    let orgName: string | null = null;
+    try {
+      await zget(c, "/invoices", { per_page: "1" });
+      await zget(c, "/creditnotes", { per_page: "1" });
+      try {
+        const o = await zget<{ organization?: { name?: string } }>(
+          c,
+          `/organizations/${DEFAULT_ORG}`,
+          {},
+        );
+        orgName = o.organization?.name ?? null;
+      } catch {
+        /* organisation name needs an extra scope; not required */
+      }
+    } catch (e) {
+      throw new Error(
+        `Connected to Zoho, but it can't read invoices and credit notes yet. Make sure the code was generated with the scope ZohoBooks.invoices.READ,ZohoBooks.creditnotes.READ. (${e instanceof Error ? e.message : e})`,
+      );
+    }
+    const { error } = await db.from("zoho_connection").upsert({
+      id: 1,
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: j.refresh_token,
+      dc,
+      org_id: DEFAULT_ORG,
+      org_name: orgName,
+      connected_at: new Date().toISOString(),
+      connected_by_email: email,
+    });
+    if (error) throw new Error(error.message);
+    return { orgName };
+  });
+
+/** Owner removes the in-app Zoho connection (the token is also revoked at Zoho). */
+export const disconnectZoho = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: true }> => {
+    const { db } = await requireOwner(context.userId);
+    const { data: row } = await db
+      .from("zoho_connection")
+      .select("refresh_token,dc")
+      .eq("id", 1)
+      .maybeSingle();
+    if (row?.refresh_token)
+      await fetch(
+        `${urls(row.dc).accounts}/oauth/v2/token/revoke?token=${encodeURIComponent(row.refresh_token)}`,
+        { method: "POST" },
+      ).catch(() => undefined);
+    await db.from("zoho_connection").delete().eq("id", 1);
+    token = null;
+    return { ok: true };
   });
