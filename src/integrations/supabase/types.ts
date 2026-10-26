@@ -1328,7 +1328,7 @@ export type Database = {
       reverse_receipt: { Args: { p_receipt: string }; Returns: undefined }
       reverse_receipt_core: { Args: { p_receipt: string }; Returns: undefined }
       set_bill_due: {
-        Args: { p_due: string; p_receipt: string }
+        Args: { p_due?: string; p_receipt: string }
         Returns: undefined
       }
       size_label: { Args: { p_size: string; p_unit: string }; Returns: string }
