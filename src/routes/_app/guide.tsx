@@ -145,6 +145,29 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: "sell",
+    title: "Record a sale",
+    body: (
+      <Ul>
+        <li>
+          Sales → <b>Record a sale</b> (or <b>Sell this</b> on a product): customer, phone, the
+          products, quantity and price each including GST (starts at the MRP). Tick{" "}
+          <b>Business customer</b> for a GST invoice with their GSTIN.
+        </li>
+        <li>
+          Stock comes off immediately. With Zoho connected the sale is created as a Zoho invoice
+          (customer and item added if new) — the next sync recognises it, so it's never counted
+          twice. Invoices made directly in Zoho still come in by themselves.
+        </li>
+        <li>
+          Zoho not connected or refused? The sale is kept here (<Pill tone="warn">here only</Pill>)
+          — use <b>Send to Zoho</b> on it later. <b>Cancel sale</b> / <b>Void in Zoho</b> puts the
+          stock back.
+        </li>
+      </Ul>
+    ),
+  },
+  {
     id: "multivendor",
     title: "Same product from several vendors",
     body: (

@@ -2,15 +2,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FileUp, RefreshCw } from "lucide-react";
+import { Ban, FileUp, RefreshCw, Send, ShoppingCart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { inr, type SaleLine } from "@/lib/domain";
 import { errMsg, useInvalidate, useProducts, useSales } from "@/lib/data";
 import { parseSalesRows } from "@/lib/sales";
 import {
+  cancelSale,
   connectZoho,
   disconnectZoho,
+  pushSaleToZoho,
   syncZohoSales,
   zohoSyncStatus,
   type SyncResult,
@@ -28,10 +30,14 @@ import {
   TextInput,
 } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { RecordSale } from "@/components/RecordSale";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/sales")({
   head: () => ({ meta: [{ title: "Sales · Sportagon Stockroom" }] }),
+  validateSearch: (s: Record<string, unknown>): { sell?: string | undefined } => ({
+    sell: typeof s["sell"] === "string" ? s["sell"] : undefined,
+  }),
   component: SalesPage,
 });
 
@@ -41,6 +47,9 @@ const month = (d: string | null) => String(d ?? "").slice(0, 7);
 
 function SalesPage() {
   const { canPublish } = useAuth();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [selling, setSelling] = useState(!!search.sell);
   const sales = useSales(400);
   const products = useProducts();
   const inv = useInvalidate();
@@ -80,6 +89,40 @@ function SalesPage() {
       .toLowerCase()
       .includes(t);
   });
+
+  // One row per document (invoice / credit note / sale made here).
+  const docs = useMemo(() => {
+    const m = new Map<string, SaleLine[]>();
+    for (const s of shown) {
+      const k = `${s.source}|${s.doc_kind}|${s.doc_id}`;
+      m.set(k, [...(m.get(k) ?? []), s]);
+    }
+    return [...m.values()].sort(
+      (a, b) =>
+        String(b[0]!.doc_date ?? "").localeCompare(String(a[0]!.doc_date ?? "")) ||
+        String(b[0]!.updated_at).localeCompare(String(a[0]!.updated_at)),
+    );
+  }, [shown]);
+  const customers = useMemo(
+    () =>
+      [...new Set((sales.data ?? []).map((s) => (s.customer ?? "").trim()).filter(Boolean))].sort(),
+    [sales.data],
+  );
+  async function act(key: string, fn: () => Promise<string>) {
+    setBusy(key);
+    try {
+      toast.success(await fn());
+      await inv("sales", "products", "adjustments");
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  const closeSell = () => {
+    setSelling(false);
+    if (search.sell) navigate({ search: {}, replace: true });
+  };
 
   async function sync() {
     setBusy("sync");
@@ -159,10 +202,17 @@ function SalesPage() {
     <>
       <PageHead
         title="Sales"
-        lede="Sales come from Zoho Books: every invoice takes stock out, credit notes put it back, voided or edited invoices correct themselves."
+        lede="Record a sale here or invoice in Zoho Books — either way stock comes off once. Sales made here become Zoho invoices; Zoho invoices and credit notes flow back in, and voided or edited invoices correct themselves."
         right={
           canPublish ? (
             <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+                onClick={() => setSelling(true)}
+              >
+                <ShoppingCart className="size-4" /> Record a sale
+              </Button>
               <Button size="sm" className="rounded-full" disabled={!!busy} onClick={sync}>
                 <RefreshCw className={cn("size-4", busy === "sync" && "animate-spin")} /> Sync now
               </Button>
@@ -187,6 +237,16 @@ function SalesPage() {
           ) : null
         }
       />
+
+      {selling && canPublish && products.data && (
+        <RecordSale
+          products={products.data}
+          customers={customers}
+          zohoOn={!!st?.configured}
+          preset={search.sell}
+          onClose={closeSell}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile k="Sales this month" v={inr(Math.round(revenue))} sub="before GST, net of returns" />
@@ -277,60 +337,138 @@ function SalesPage() {
             />
           }
         >
-          Sales lines
+          What's sold
         </CardTitle>
         {sales.isLoading ? (
           <Empty>Loading…</Empty>
-        ) : !shown.length ? (
-          <Empty>No sales yet. Sync with Zoho or import an export.</Empty>
+        ) : !docs.length ? (
+          <Empty>No sales yet. Record a sale, sync with Zoho or import an export.</Empty>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-[10.5px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Document</th>
-                  <th className="hidden p-2 sm:table-cell">Customer</th>
-                  <th className="p-2">Product</th>
-                  <th className="p-2 text-right">Qty</th>
-                  <th className="hidden p-2 text-right sm:table-cell">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.slice(0, 300).map((s) => {
-                  const p = s.product_id ? prodById.get(s.product_id) : undefined;
-                  const off = ["draft", "void"].includes(s.doc_status ?? "");
-                  return (
-                    <tr key={s.id} className={cn("border-t", off && "opacity-50 line-through")}>
-                      <td className="whitespace-nowrap p-2 text-xs">{s.doc_date ?? "—"}</td>
-                      <td className="p-2">
-                        <span className="font-mono text-xs">{s.doc_no}</span>{" "}
-                        {s.doc_kind === "credit" && <Pill tone="info">return</Pill>}
-                        {off && <Pill>{s.doc_status}</Pill>}
-                      </td>
-                      <td className="wrap-any hidden p-2 text-xs sm:table-cell">{s.customer}</td>
-                      <td className="p-2">
-                        {p ? (
-                          <Link to="/products" search={{ sel: p.id }} className="hover:underline">
+          <ul className="grid gap-2">
+            {docs.slice(0, 200).map((ls) => {
+              const d = ls[0]!;
+              const off = ["draft", "void"].includes(d.doc_status ?? "");
+              const amount = ls.reduce((a, s) => a + Number(s.amount ?? 0), 0);
+              const units = ls.reduce((a, s) => a + Number(s.qty), 0);
+              const here = d.source === "app";
+              const key = `${d.source}|${d.doc_id}`;
+              return (
+                <li
+                  key={key}
+                  className={cn(
+                    "grid gap-2 rounded-xl border p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start",
+                    off && "opacity-60",
+                  )}
+                >
+                  <div className="grid min-w-0 gap-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span className="text-xs text-muted-foreground">{d.doc_date ?? "—"}</span>
+                      <span
+                        className={cn("font-mono text-xs font-semibold", off && "line-through")}
+                      >
+                        {d.doc_no}
+                      </span>
+                      {d.doc_kind === "credit" ? (
+                        <Pill tone="info">return</Pill>
+                      ) : here ? (
+                        <Pill tone="warn">here only — not in Zoho</Pill>
+                      ) : (
+                        <Pill tone="ok">Zoho</Pill>
+                      )}
+                      {off && <Pill>{d.doc_status}</Pill>}
+                      <b className="wrap-any">{d.customer || "—"}</b>
+                      {d.customer_phone && (
+                        <span className="text-xs text-muted-foreground">{d.customer_phone}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ls.map((s) => {
+                        const p = s.product_id ? prodById.get(s.product_id) : undefined;
+                        return p ? (
+                          <Link
+                            key={s.id}
+                            to="/products"
+                            search={{ sel: p.id }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-0.5 text-xs hover:underline"
+                          >
                             <Code>{p.code}</Code>
+                            <span className="wrap-any">{p.friendly_name}</span>
+                            <b className="tabular-nums">
+                              {s.doc_kind === "credit" ? "+" : "×"}
+                              {Number(s.qty)}
+                            </b>
                           </Link>
                         ) : (
-                          <Pill tone="warn">{s.item_name}</Pill>
-                        )}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {s.doc_kind === "credit" ? "+" : "−"}
-                        {Number(s.qty)}
-                      </td>
-                      <td className="hidden p-2 text-right tabular-nums sm:table-cell">
-                        {s.amount != null ? inr(Number(s.amount)) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          <Pill key={s.id} tone="warn">
+                            {s.item_name} ×{Number(s.qty)}
+                          </Pill>
+                        );
+                      })}
+                    </div>
+                    {(d.note || d.recorded_by) && (
+                      <span className="wrap-any text-xs text-muted-foreground">
+                        {d.note}
+                        {d.note && d.recorded_by ? " · " : ""}
+                        {d.recorded_by ? `recorded by ${d.recorded_by.split("@")[0]}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <span className="text-right text-sm tabular-nums">
+                      <b>{inr(amount)}</b>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {units} unit{units === 1 ? "" : "s"} · before GST
+                      </span>
+                    </span>
+                    {canPublish && here && !off && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          disabled={!!busy || !st?.configured}
+                          title={st?.configured ? "" : "Connect Zoho Books first"}
+                          onClick={() =>
+                            act(`push:${key}`, async () => {
+                              const r = await pushSaleToZoho({ data: { docId: d.doc_id } });
+                              return `In Zoho as ${r.docNo}`;
+                            })
+                          }
+                        >
+                          <Send className="size-4" /> Send to Zoho
+                        </Button>
+                        <CancelButton
+                          busy={!!busy}
+                          onConfirm={() =>
+                            act(`cancel:${key}`, async () => {
+                              const r = await cancelSale({
+                                data: { source: "app", docId: d.doc_id },
+                              });
+                              return `${d.doc_no} cancelled — ${r.units} back in stock`;
+                            })
+                          }
+                        />
+                      </>
+                    )}
+                    {canPublish && !here && !off && d.doc_kind === "invoice" && d.zoho_doc_id && (
+                      <CancelButton
+                        label="Void in Zoho"
+                        busy={!!busy}
+                        onConfirm={() =>
+                          act(`cancel:${key}`, async () => {
+                            const r = await cancelSale({
+                              data: { source: "zoho", docId: d.doc_id },
+                            });
+                            return `${d.doc_no} voided in Zoho — ${r.units} back in stock`;
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
     </>
@@ -357,7 +495,8 @@ function ZohoConnect({ status, onChange }: { status: SyncResult; onChange: () =>
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
-  const SCOPE = "ZohoBooks.invoices.READ,ZohoBooks.creditnotes.READ";
+  const SCOPE =
+    "ZohoBooks.invoices.ALL,ZohoBooks.creditnotes.READ,ZohoBooks.contacts.ALL,ZohoBooks.settings.ALL";
 
   if (status.source === "app")
     return (
@@ -505,8 +644,9 @@ function ZohoConnect({ status, onChange }: { status: SyncResult; onChange: () =>
               {busy ? "Connecting…" : "Connect"}
             </Button>
             <span className="text-xs text-muted-foreground">
-              Read-only access to invoices and credit notes. Keys are stored on the server only —
-              never shown again or sent to the browser.
+              Reads invoices and credit notes, and creates invoices (with their customer and item)
+              for sales recorded here. Keys are stored on the server only — never shown again or
+              sent to the browser.
             </span>
           </div>
         </>
@@ -516,5 +656,36 @@ function ZohoConnect({ status, onChange }: { status: SyncResult; onChange: () =>
         <b>Import Zoho export</b>. Re-importing the same file never double-counts.
       </Notice>
     </Card>
+  );
+}
+
+function CancelButton({
+  label = "Cancel sale",
+  busy,
+  onConfirm,
+}: {
+  label?: string;
+  busy: boolean;
+  onConfirm: () => void;
+}) {
+  const [sure, setSure] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant={sure ? "destructive" : "ghost"}
+      className="rounded-full"
+      disabled={busy}
+      onBlur={() => setSure(false)}
+      onClick={() => {
+        if (!sure) {
+          setSure(true);
+          return;
+        }
+        setSure(false);
+        onConfirm();
+      }}
+    >
+      <Ban className="size-4" /> {sure ? "Tap again — stock goes back" : label}
+    </Button>
   );
 }

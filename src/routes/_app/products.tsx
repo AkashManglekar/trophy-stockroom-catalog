@@ -15,6 +15,7 @@ import {
   Star,
   Trash2,
   X,
+  ShoppingCart,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -1077,6 +1078,15 @@ function ProductPanel({
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
           Stock · {p.stock} {t?.uom}
         </h4>
+        {canPublish && p.status !== "Archived" && (
+          <Link
+            to="/sales"
+            search={{ sell: p.id }}
+            className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent-foreground hover:bg-accent/90"
+          >
+            <ShoppingCart className="size-4" /> Sell this
+          </Link>
+        )}
         {!t?.is_service &&
           (canPublish ? (
             <StockAdjustForm p={p} unit={t?.uom} />

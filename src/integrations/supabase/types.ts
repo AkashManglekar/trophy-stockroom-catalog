@@ -817,6 +817,7 @@ export type Database = {
           amount: number | null
           applied_qty: number
           customer: string | null
+          customer_phone: string | null
           doc_date: string | null
           doc_id: string
           doc_kind: string
@@ -825,18 +826,22 @@ export type Database = {
           id: string
           item_name: string | null
           line_key: string
+          note: string | null
+          recorded_by: string | null
           product_id: string | null
           qty: number
           rate: number | null
           sku: string | null
           source: string
           updated_at: string
+          zoho_doc_id: string | null
           zoho_item_id: string | null
         }
         Insert: {
           amount?: number | null
           applied_qty?: number
           customer?: string | null
+          customer_phone?: string | null
           doc_date?: string | null
           doc_id: string
           doc_kind: string
@@ -845,18 +850,22 @@ export type Database = {
           id?: string
           item_name?: string | null
           line_key: string
+          note?: string | null
+          recorded_by?: string | null
           product_id?: string | null
           qty?: number
           rate?: number | null
           sku?: string | null
           source?: string
           updated_at?: string
+          zoho_doc_id?: string | null
           zoho_item_id?: string | null
         }
         Update: {
           amount?: number | null
           applied_qty?: number
           customer?: string | null
+          customer_phone?: string | null
           doc_date?: string | null
           doc_id?: string
           doc_kind?: string
@@ -865,12 +874,15 @@ export type Database = {
           id?: string
           item_name?: string | null
           line_key?: string
+          note?: string | null
+          recorded_by?: string | null
           product_id?: string | null
           qty?: number
           rate?: number | null
           sku?: string | null
           source?: string
           updated_at?: string
+          zoho_doc_id?: string | null
           zoho_item_id?: string | null
         }
         Relationships: [
