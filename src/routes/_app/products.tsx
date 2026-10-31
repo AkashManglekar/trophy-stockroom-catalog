@@ -17,6 +17,7 @@ import {
   X,
   ShoppingCart,
   Shirt,
+  Plus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -219,11 +220,22 @@ function ProductsPage() {
             {canPublish && (
               <Button
                 size="sm"
+                className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+                asChild
+              >
+                <Link to="/products/new" search={{}}>
+                  <Plus className="size-4" /> Add product
+                </Link>
+              </Button>
+            )}
+            {canPublish && (
+              <Button
+                size="sm"
                 className="rounded-full"
                 onClick={() => setBulk((v) => !v)}
                 aria-pressed={bulk}
               >
-                <SlidersHorizontal className="size-4" /> Adjust stock
+                <SlidersHorizontal className="size-4" /> Add / adjust stock
               </Button>
             )}
             <Button variant="outline" size="sm" className="rounded-full" asChild>
@@ -1075,27 +1087,42 @@ function ProductPanel({
         </div>
       </section>
 
-      <section className="grid gap-2">
+      <section className="grid gap-2" id="stock">
         <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
           Stock · {p.stock} {t?.uom}
         </h4>
         {canPublish && p.status !== "Archived" && (
-          <Link
-            to="/sales"
-            search={{ sell: p.id }}
-            className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent-foreground hover:bg-accent/90"
-          >
-            <ShoppingCart className="size-4" /> Sell this
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/sales"
+              search={{ sell: p.id }}
+              className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent-foreground hover:bg-accent/90"
+            >
+              <ShoppingCart className="size-4" /> Sell this
+            </Link>
+            {p.stock > 0 && (
+              <Link
+                to="/issued"
+                search={{ issue: p.id }}
+                className="inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:border-primary"
+              >
+                <Shirt className="size-4" /> Issue to someone
+              </Link>
+            )}
+            <Link
+              to="/products/new"
+              search={{ family: p.family_id }}
+              className="inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:border-primary"
+            >
+              <Plus className="size-4" /> Add a size / colour
+            </Link>
+          </div>
         )}
-        {canPublish && p.status !== "Archived" && p.stock > 0 && (
-          <Link
-            to="/issued"
-            search={{ issue: p.id }}
-            className="inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:border-primary"
-          >
-            <Shirt className="size-4" /> Issue to someone
-          </Link>
+        {!t?.is_service && canPublish && (
+          <p className="text-xs text-muted-foreground">
+            <b>Add stock</b> to this item below (opening stock, found, transfer in…). Bought on a
+            bill? Use Receive so cost and vendor update too.
+          </p>
         )}
         {!t?.is_service &&
           (canPublish ? (

@@ -145,6 +145,31 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: "addproduct",
+    title: "Add a product without a bill",
+    body: (
+      <Ul>
+        <li>
+          Products → <b>Add product</b>: division, type, material, sport, design name and customer
+          description (or tick <b>Internal stock only</b>). Then one row per size / colour with its
+          stock, cost, an optional fixed MRP and the vendor's code — codes and prices show as you
+          type.
+        </li>
+        <li>
+          Shortcuts: <b>Add every size</b> for apparel,{" "}
+          <b>Gold, Silver &amp; Bronze for each size</b> for medals. Below: vendor, reference,
+          selling GST, shelf location, low-stock level, award class and customisable. Add photos
+          right after saving.
+        </li>
+        <li>
+          Existing product: <b>Add a size / colour</b> on its page adds variants to the same design
+          code; <b>Add stock</b> on its page (or <b>Add / adjust stock</b> on Products for many at
+          once) adds quantity. Bought on a bill? Use Receive so cost and vendor update.
+        </li>
+      </Ul>
+    ),
+  },
+  {
     id: "sell",
     title: "Record a sale",
     body: (

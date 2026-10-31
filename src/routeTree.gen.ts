@@ -25,6 +25,7 @@ import { Route as AppSalesRouteImport } from './routes/_app/sales'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppVendorsRouteImport } from './routes/_app/vendors'
 import { Route as MediaSplatRouteImport } from './routes/media.$'
+import { Route as AppProductsNewRouteImport } from './routes/_app/products_.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -105,6 +106,11 @@ const MediaSplatRoute = MediaSplatRouteImport.update({
   path: '/media/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppProductsNewRoute = AppProductsNewRouteImport.update({
+  id: '/products_/new',
+  path: '/products/new',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/vendors': typeof AppVendorsRoute
   '/media/$': typeof MediaSplatRoute
+  '/products/new': typeof AppProductsNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/vendors': typeof AppVendorsRoute
   '/media/$': typeof MediaSplatRoute
+  '/products/new': typeof AppProductsNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/vendors': typeof AppVendorsRoute
   '/media/$': typeof MediaSplatRoute
+  '/_app/products_/new': typeof AppProductsNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/vendors'
     | '/media/$'
+    | '/products/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -194,6 +204,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/vendors'
     | '/media/$'
+    | '/products/new'
   id:
     | '__root__'
     | '/'
@@ -212,6 +223,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/vendors'
     | '/media/$'
+    | '/_app/products_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -336,6 +348,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MediaSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/products_/new': {
+      id: '/_app/products_/new'
+      path: '/products/new'
+      fullPath: '/products/new'
+      preLoaderRoute: typeof AppProductsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -351,6 +370,7 @@ interface AppRouteChildren {
   AppSalesRoute: typeof AppSalesRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppVendorsRoute: typeof AppVendorsRoute
+  AppProductsNewRoute: typeof AppProductsNewRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -365,6 +385,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSalesRoute: AppSalesRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppVendorsRoute: AppVendorsRoute,
+  AppProductsNewRoute: AppProductsNewRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
