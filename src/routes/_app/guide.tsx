@@ -162,9 +162,15 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
           right after saving.
         </li>
         <li>
+          Pick <b>Bought on a vendor bill</b> (vendor, bill no., date, GST %) and it is saved as
+          that vendor's bill — GST input, what you owe, the vendor's price — or{" "}
+          <b>Already in stock — no bill</b>. Tick <b>Create the items in Zoho Books</b> so the SKU,
+          rates, HSN and GST are there for invoices.
+        </li>
+        <li>
           Existing product: <b>Add a size / colour</b> on its page adds variants to the same design
-          code; <b>Add stock</b> on its page (or <b>Add / adjust stock</b> on Products for many at
-          once) adds quantity. Bought on a bill? Use Receive so cost and vendor update.
+          code. <b>Add stock</b> on its page takes quantity, unit cost, GST, vendor and the bill
+          number — with a bill number it's recorded as that vendor's bill.
         </li>
       </Ul>
     ),

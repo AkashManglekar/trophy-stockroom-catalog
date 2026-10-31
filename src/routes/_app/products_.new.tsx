@@ -20,10 +20,11 @@ import {
   variantLabel,
 } from "@/lib/data";
 import { newDraft, newLine, type Draft } from "@/lib/draft";
-import { planDraft, type LinePlan, type PlanCtx } from "@/lib/receive-plan";
+import { billCosts, lineGstRate, planDraft, type LinePlan, type PlanCtx } from "@/lib/receive-plan";
+import { createZohoItems, zohoSyncStatus } from "@/lib/zoho-sync.functions";
 import { normDesc } from "@/lib/naming";
 import { pricePayload } from "@/lib/pricing";
-import { GST_RATES } from "@/lib/gst";
+import { GST_RATES, SUPPLY_LABEL, supplyTypeFor } from "@/lib/gst";
 import {
   Card,
   CardTitle,
@@ -113,6 +114,10 @@ function AddProductPage() {
   const [rows, setRows] = useState<Row[]>([blankRow()]);
   const [defCost, setDefCost] = useState("");
   // ---- source & details ----
+  /** bill = bought on a vendor bill (GST, what you owe, cost, vendor); stock = no bill. */
+  const [how, setHow] = useState<"bill" | "stock">("bill");
+  const [toZoho, setToZoho] = useState(true);
+  const zoho = useQuery({ queryKey: ["zoho-status"], queryFn: () => zohoSyncStatus() });
   const [vendorId, setVendorId] = useState("");
   const [refNo, setRefNo] = useState("");
   const [date, setDate] = useState(today());
@@ -155,7 +160,7 @@ function AddProductPage() {
     const first = rows[0]?.id;
     return {
       ...newDraft(),
-      type: "opening",
+      type: how === "bill" ? "bill" : "opening",
       vendorId,
       billNo: refNo,
       billDate: date,
@@ -186,6 +191,7 @@ function AddProductPage() {
       ),
     };
   }, [
+    how,
     rows,
     vendorId,
     refNo,
@@ -230,7 +236,19 @@ function AddProductPage() {
     setRows((rs) => rs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   const errorsOf = (id: string) => (plans[id] as LinePlan | undefined)?.errors ?? [];
   const allErr = rows.flatMap((x) => errorsOf(x.id));
-  const headErr = !d || !t ? "Pick the division and type" : !fam && !mat ? "Pick the material" : "";
+  const headErr =
+    !d || !t
+      ? "Pick the division and type"
+      : !fam && !mat
+        ? "Pick the material"
+        : how === "bill" && !vendorId
+          ? "Pick the vendor (or choose 'Already in stock — no bill')"
+          : how === "bill" && !refNo.trim()
+            ? "Enter the bill / invoice number"
+            : "";
+  const vend = (vendors.data ?? []).find((v) => v.id === vendorId);
+  const supply = vend && r ? supplyTypeFor(vend, r.settings.company_state) : null;
+  const effGst = num(gst) ?? (typ?.gst != null ? Number(typ.gst) : null);
   const units = rows.reduce((a, x) => a + (num(x.qty) ?? 0), 0);
   const value = rows.reduce(
     (a, x) => a + (num(x.qty) ?? 0) * (num(x.cost.trim() || defCost) ?? 0),
@@ -284,7 +302,7 @@ function AddProductPage() {
           billed_qty: num(l.billed),
           unit_cost: num(l.cost),
           extra_cost: null,
-          gst_rate: null,
+          gst_rate: how === "bill" ? lineGstRate(l, P, ctx) : null,
           vendor_item_code: l.vitem.trim() || null,
           description: description.trim() || pv.friendly,
           norm_desc: l.vitem.trim() ? normDesc(pv.friendly) : null,
@@ -307,13 +325,26 @@ function AddProductPage() {
           prices: pricePayload(pv.price),
         };
       });
+      const c2 = how === "bill" ? billCosts(draft, p2, ctx, supply) : null;
       const { data, error } = await supabase.rpc("receive_stock", {
         payload: {
-          receipt_type: "opening",
+          receipt_type: how === "bill" ? "bill" : "opening",
           vendor_id: vendorId || null,
           bill_no: refNo.trim() || null,
           bill_date: date,
           notes: "Added from Products",
+          ...(c2
+            ? {
+                bill_total: c2.goods,
+                charges: [],
+                goods_value: c2.goods,
+                charges_total: 0,
+                gst_total: c2.gst,
+                gst_type: c2.gstType,
+                gst_breakup: c2.breakup,
+                total_cost: c2.total,
+              }
+            : {}),
           lines,
         },
       });
@@ -360,7 +391,21 @@ function AddProductPage() {
         if (Object.keys(patch).length) await supabase.from("products").update(patch).eq("id", p.id);
       }
       await inv("products", "families", "vendor_codes", "receipts", "counters");
-      toast.success(`${res.created.length} product${res.created.length === 1 ? "" : "s"} added`);
+      toast.success(
+        `${res.created.length} product${res.created.length === 1 ? "" : "s"} added` +
+          (how === "bill" ? ` — bill ${refNo.trim()} recorded` : ""),
+      );
+      if (toZoho && zoho.data?.configured) {
+        try {
+          const z = await createZohoItems({
+            data: { productIds: res.created.map((c) => c.product_id) },
+          });
+          if (z.failed.length) toast.warning(`Zoho: ${z.failed.join("; ")}`, { duration: 12000 });
+          else toast.success(`${z.done} item${z.done === 1 ? "" : "s"} created in Zoho Books`);
+        } catch (e) {
+          toast.warning(`Not created in Zoho: ${errMsg(e)}`, { duration: 12000 });
+        }
+      }
       setDone(res.created);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
@@ -457,7 +502,7 @@ function AddProductPage() {
     <>
       <PageHead
         title="Add product"
-        lede="Create a product directly — without a vendor bill. Everything a product needs is here; codes, names and prices are worked out the same way as on Receive."
+        lede="Create a product directly with everything it needs — design, sizes, cost, GST, vendor and bill. Codes, names and prices are worked out the same way as on Receive."
         right={
           <Link
             to="/products"
@@ -796,11 +841,50 @@ function AddProductPage() {
       </Card>
 
       <Card>
-        <CardTitle>3 · Where it came from &amp; details</CardTitle>
+        <CardTitle>3 · Where it came from, GST &amp; details</CardTitle>
+        <div
+          className="inline-flex w-fit flex-wrap gap-1 rounded-full border bg-muted p-1"
+          role="group"
+          aria-label="How it came in"
+        >
+          {(
+            [
+              ["bill", "Bought on a vendor bill"],
+              ["stock", "Already in stock — no bill"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              aria-pressed={how === k}
+              onClick={() => setHow(k)}
+              className={cn(
+                "rounded-full px-4 py-2 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground",
+                how === k && "bg-card text-primary shadow-sm",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {how === "bill"
+            ? "Recorded as the vendor's bill: GST input, what you owe (Bills), the vendor's price for this product and its preferred vendor — and it exports to Zoho like any bill."
+            : "For stock you already had (opening count, samples). Cost and GST set the price; the vendor, if given, becomes its preferred vendor."}
+        </p>
         <div className="grid gap-3 sm:grid-cols-4">
-          <Field label="Vendor (optional)" hint="Becomes its preferred vendor">
+          <Field
+            label={how === "bill" ? "Vendor" : "Vendor (optional)"}
+            hint={
+              how === "bill" && supply
+                ? SUPPLY_LABEL[supply]
+                : how === "bill"
+                  ? "Their state decides IGST or CGST + SGST"
+                  : "Becomes its preferred vendor"
+            }
+          >
             <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
-              <option value="">No vendor</option>
+              <option value="">{how === "bill" ? "Select vendor…" : "No vendor"}</option>
               {(vendors.data ?? [])
                 .filter((v) => v.status !== "Archived")
                 .map((v) => (
@@ -810,18 +894,23 @@ function AddProductPage() {
                 ))}
             </Select>
           </Field>
-          <Field label="Reference (optional)" hint="Count sheet, challan no.…">
+          <Field
+            label={how === "bill" ? "Bill / invoice no." : "Reference (optional)"}
+            hint={how === "bill" ? "As printed on the bill" : "Count sheet, challan no.…"}
+          >
             <TextInput value={refNo} onChange={(e) => setRefNo(e.target.value)} />
           </Field>
-          <Field label="Date">
+          <Field label={how === "bill" ? "Bill date" : "Date"}>
             <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field
-            label="Selling GST %"
-            hint={gst === "" ? `Type's usual (${typ?.gst ?? "—"}%)` : "Set by hand"}
+            label="GST %"
+            hint={`${how === "bill" ? "On the bill and when selling" : "Selling GST"} · HSN ${typ?.hsn || "—"}${gst === "" && typ?.gst != null ? ` · type's usual ${typ.gst}%` : ""}`}
           >
             <Select value={gst} onChange={(e) => setGst(e.target.value)}>
-              <option value="">Usual for the type</option>
+              <option value="">
+                {typ?.gst != null ? `${typ.gst}% (usual for ${typ.name})` : "Usual for the type"}
+              </option>
               {GST_RATES.map((g) => (
                 <option key={g} value={String(g)}>
                   {g}%
@@ -870,12 +959,49 @@ function AddProductPage() {
             </Select>
           </Field>
         </div>
+        {how === "bill" && value > 0 && (
+          <div className="flex flex-wrap gap-x-5 gap-y-1 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+            <span>
+              <b className="block text-base tabular-nums text-foreground">{inr(value)}</b>goods
+              before GST
+            </span>
+            <span>
+              <b className="block text-base tabular-nums text-foreground">
+                {inr(Math.round(value * (effGst ?? 0)) / 100)}
+              </b>
+              GST {effGst ?? "—"}%{supply ? ` · ${supply === "igst" ? "IGST" : "CGST + SGST"}` : ""}
+            </span>
+            <span>
+              <b className="block text-base tabular-nums text-foreground">
+                {inr(Math.round(value * (100 + (effGst ?? 0))) / 100)}
+              </b>
+              bill total
+            </span>
+          </div>
+        )}
+        <label
+          className={cn(
+            "flex w-fit items-center gap-2 text-sm",
+            !zoho.data?.configured && "opacity-60",
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={toZoho && !!zoho.data?.configured}
+            disabled={!zoho.data?.configured}
+            onChange={(e) => setToZoho(e.target.checked)}
+          />
+          Create the items in Zoho Books now (SKU, selling &amp; purchase rate, HSN, GST)
+          {!zoho.data?.configured && (
+            <span className="text-xs text-muted-foreground">— connect Zoho on the Sales page</span>
+          )}
+        </label>
         <p className="text-xs text-muted-foreground">
-          Bought on a vendor bill? Use{" "}
+          Several different products on one bill, or shipping charges? Use{" "}
           <Link to="/receive" className="font-semibold text-primary">
             Receive
           </Link>{" "}
-          instead — it records the bill, its GST and what you owe.
+          — it handles many items, charges and bill photos.
         </p>
       </Card>
 

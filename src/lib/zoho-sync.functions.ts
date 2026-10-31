@@ -477,6 +477,8 @@ type SellLine = {
   rate: number;
   gst: number;
   hsn: string | null;
+  /** purchase cost before GST, for the Zoho item's purchase rate */
+  cost?: number | null;
 };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -574,18 +576,28 @@ async function itemIdFor(c: Cfg, db: Db, l: SellLine): Promise<string> {
       t.intra ? { tax_id: t.intra, tax_specification: "intra" } : null,
       t.inter ? { tax_id: t.inter, tax_specification: "inter" } : null,
     ].filter(Boolean);
-    const body = {
+    const base = {
       name: l.name,
       sku: l.code,
       rate: l.rate,
       product_type: "goods",
-      item_type: "sales",
       ...(l.hsn ? { hsn_or_sac: l.hsn } : {}),
       ...(prefs.length ? { item_tax_preferences: prefs } : {}),
     };
+    // Sold and bought: keep the purchase rate too (falls back to a sales-only item if refused).
+    let body: Record<string, unknown> =
+      l.cost != null
+        ? { ...base, item_type: "sales_and_purchases", purchase_rate: l.cost }
+        : { ...base, item_type: "sales" };
     let j: { item?: { item_id: string } };
     try {
-      j = await zsend(c, "POST", "/items", body);
+      try {
+        j = await zsend(c, "POST", "/items", body);
+      } catch (e) {
+        if (/already exists/i.test(String(e)) || body["item_type"] === "sales") throw e;
+        body = { ...base, item_type: "sales" };
+        j = await zsend(c, "POST", "/items", body);
+      }
     } catch (e) {
       // Item names are unique in Zoho — retry with the code in the name.
       if (!/already exists/i.test(String(e))) throw e;
@@ -709,7 +721,7 @@ async function sellLines(db: Db, rows: { productId: string; qty: number; rate: n
   const ids = [...new Set(rows.map((r) => r.productId))];
   const { data: prods, error } = await db
     .from("products")
-    .select("id,code,friendly_name,gst,div,type")
+    .select("id,code,friendly_name,gst,div,type,unit_cost")
     .in("id", ids);
   if (error) throw new Error(error.message);
   const { data: types } = await db.from("types").select("div,code,gst,hsn");
@@ -725,6 +737,7 @@ async function sellLines(db: Db, rows: { productId: string; qty: number; rate: n
       rate: r.rate,
       gst: Number(p.gst ?? t?.gst ?? 18),
       hsn: t?.hsn ?? null,
+      cost: p.unit_cost != null ? Number(p.unit_cost) : null,
     } satisfies SellLine;
   });
 }
@@ -901,4 +914,32 @@ export const cancelSale = createServerFn({ method: "POST" })
     const j = await zget<{ invoice?: Record<string, unknown> }>(c, `/invoices/${zid}`, {});
     const units = await applyDocs(db, [docFrom("invoice", j.invoice!, zid)], "zoho");
     return { units };
+  });
+
+/** Create (or link) the Zoho Books items for products — SKU = product code, selling and purchase
+ *  rate, HSN and GST — so invoices and bills in Zoho use the same items. */
+export const createZohoItems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { productIds: string[] }) => d)
+  .handler(async ({ data, context }): Promise<{ done: number; failed: string[] }> => {
+    const { db } = await requirePublisher(context.userId);
+    const c = await cfg();
+    if (!c.ok) throw new Error("Zoho Books isn't connected — connect it on the Sales page");
+    const ids = [...new Set(data.productIds ?? [])].slice(0, 100);
+    const { data: prods } = await db.from("products").select("id,selling").in("id", ids);
+    const lines = await sellLines(
+      db,
+      (prods ?? []).map((p) => ({ productId: p.id, qty: 1, rate: Number(p.selling ?? 0) })),
+    );
+    let done = 0;
+    const failed: string[] = [];
+    for (const l of lines) {
+      try {
+        await itemIdFor(c, db, l);
+        done++;
+      } catch (e) {
+        failed.push(`${l.code}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return { done, failed };
   });

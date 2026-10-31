@@ -57,6 +57,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { LinkToProduct, ProductSourcing, ReorderLevelField } from "@/components/ProductSourcing";
 import { swatchOf } from "@/lib/variants";
 import { BulkAdjust, StockAdjustForm } from "@/components/StockAdjust";
+import { AddStockForm } from "@/components/AddStock";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { publicCatalogueUrl } from "@/lib/hosts";
@@ -1118,11 +1119,13 @@ function ProductPanel({
             </Link>
           </div>
         )}
+        {!t?.is_service && canPublish && p.status !== "Archived" && (
+          <AddStockForm key={p.id} p={p} ref_={ref_} />
+        )}
         {!t?.is_service && canPublish && (
-          <p className="text-xs text-muted-foreground">
-            <b>Add stock</b> to this item below (opening stock, found, transfer in…). Bought on a
-            bill? Use Receive so cost and vendor update too.
-          </p>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Correct stock — returns, found, damaged, recount
+          </span>
         )}
         {!t?.is_service &&
           (canPublish ? (
