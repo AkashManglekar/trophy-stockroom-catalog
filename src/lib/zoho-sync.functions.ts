@@ -479,6 +479,9 @@ type SellLine = {
   hsn: string | null;
   /** purchase cost before GST, for the Zoho item's purchase rate */
   cost?: number | null;
+  div?: string;
+  stock?: number;
+  landed?: number | null;
 };
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -535,6 +538,36 @@ const stateOfGstin = (gstin: string | undefined) => {
   return g ? (STATES.find((s) => s.gst === g)?.code ?? null) : null;
 };
 
+let accCache: { at: number; forDiv: (div: string) => string | undefined; cogs?: string } | null =
+  null;
+/** Zoho stock accounts by division (Trophies and medals / Apparel / Infrastructure inventory,
+ *  else Inventory Asset) and the Cost of Goods Sold account. */
+async function stockAccounts(c: Cfg) {
+  if (accCache && Date.now() - accCache.at < 3_600_000) return accCache;
+  const j = await zget<{ chartofaccounts?: Record<string, unknown>[] }>(c, "/chartofaccounts", {
+    filter_by: "AccountType.Active",
+    per_page: "200",
+  });
+  const rows = j.chartofaccounts ?? [];
+  const find = (re: RegExp, type?: string) =>
+    rows.find(
+      (a) => re.test(String(a["account_name"] ?? "")) && (!type || a["account_type"] === type),
+    )?.["account_id"] as string | undefined;
+  const trophies = find(/trophies and medals inventory/i, "stock");
+  const apparel = find(/apparel.*inventory/i, "stock");
+  const infra = find(/infrastructure.*inventory/i, "stock");
+  const asset = find(/^inventory asset$/i, "stock");
+  const cogs = find(/^cost of goods sold$/i);
+  const map: Record<string, string | undefined> = { TR: trophies, AP: apparel, IN: infra };
+  accCache = {
+    at: Date.now(),
+    // Services carry no stock.
+    forDiv: (div: string) => (div === "SV" ? undefined : (map[div] ?? asset ?? trophies)),
+    ...(cogs ? { cogs } : {}),
+  };
+  return accCache;
+}
+
 let taxCache: { at: number; rows: Record<string, unknown>[] } | null = null;
 async function taxIds(c: Cfg, pct: number) {
   if (!taxCache || Date.now() - taxCache.at > 3_600_000) {
@@ -584,11 +617,25 @@ async function itemIdFor(c: Cfg, db: Db, l: SellLine): Promise<string> {
       ...(l.hsn ? { hsn_or_sac: l.hsn } : {}),
       ...(prefs.length ? { item_tax_preferences: prefs } : {}),
     };
-    // Sold and bought: keep the purchase rate too (falls back to a sales-only item if refused).
+    // Stock is tracked in Zoho too: an inventory item in the division's stock account, opening
+    // stock = what the stockroom holds now at landed cost. Falls back to a plain item if refused.
+    const acc = await stockAccounts(c);
+    const invAcc = acc.forDiv(l.div ?? "");
     let body: Record<string, unknown> =
-      l.cost != null
-        ? { ...base, item_type: "sales_and_purchases", purchase_rate: l.cost }
-        : { ...base, item_type: "sales" };
+      invAcc && acc.cogs
+        ? {
+            ...base,
+            item_type: "inventory",
+            inventory_account_id: invAcc,
+            purchase_account_id: acc.cogs,
+            purchase_rate: l.cost ?? l.landed ?? 0,
+            ...(l.stock && l.stock > 0
+              ? { initial_stock: l.stock, initial_stock_rate: l.landed ?? l.cost ?? 0 }
+              : {}),
+          }
+        : l.cost != null
+          ? { ...base, item_type: "sales_and_purchases", purchase_rate: l.cost }
+          : { ...base, item_type: "sales" };
     let j: { item?: { item_id: string } };
     try {
       try {
@@ -721,7 +768,7 @@ async function sellLines(db: Db, rows: { productId: string; qty: number; rate: n
   const ids = [...new Set(rows.map((r) => r.productId))];
   const { data: prods, error } = await db
     .from("products")
-    .select("id,code,friendly_name,gst,div,type,unit_cost")
+    .select("id,code,friendly_name,gst,div,type,unit_cost,stock,landed")
     .in("id", ids);
   if (error) throw new Error(error.message);
   const { data: types } = await db.from("types").select("div,code,gst,hsn");
@@ -738,6 +785,9 @@ async function sellLines(db: Db, rows: { productId: string; qty: number; rate: n
       gst: Number(p.gst ?? t?.gst ?? 18),
       hsn: t?.hsn ?? null,
       cost: p.unit_cost != null ? Number(p.unit_cost) : null,
+      div: p.div,
+      stock: Number(p.stock ?? 0),
+      landed: p.landed != null ? Number(p.landed) : null,
     } satisfies SellLine;
   });
 }
