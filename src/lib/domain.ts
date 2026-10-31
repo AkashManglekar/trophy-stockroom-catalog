@@ -20,6 +20,16 @@ export type QuoteRequest = Tables<"quote_requests">;
 export type ProductSource = Tables<"product_sources">;
 export type ReorderFlag = Tables<"reorder_flags">;
 export type BillDraft = Tables<"bill_drafts">;
+export type StockIssue = Tables<"stock_issues">;
+/** Why internal stock is handed out (issue register). */
+export const ISSUE_PURPOSES = [
+  "Officials",
+  "Marketing / giveaway",
+  "Staff",
+  "Event",
+  "Sample",
+  "Other",
+];
 export const PAY_MODES = ["UPI", "NEFT / RTGS", "IMPS", "Cash", "Cheque", "Card", "Other"];
 export type Role = "owner" | "editor" | "contributor" | "viewer";
 

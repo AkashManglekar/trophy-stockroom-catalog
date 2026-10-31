@@ -895,6 +895,57 @@ export type Database = {
           },
         ]
       }
+      stock_issues: {
+        Row: {
+          created_at: string
+          id: string
+          issued_by: string | null
+          issued_by_email: string | null
+          issued_on: string
+          issued_to: string
+          note: string | null
+          phone: string | null
+          product_id: string
+          purpose: string
+          qty: number
+          ref: string
+          returned_qty: number
+          unit_cost: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issued_by?: string | null
+          issued_by_email?: string | null
+          issued_on?: string
+          issued_to: string
+          note?: string | null
+          phone?: string | null
+          product_id: string
+          purpose: string
+          qty: number
+          ref: string
+          returned_qty?: number
+          unit_cost?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issued_by?: string | null
+          issued_by_email?: string | null
+          issued_on?: string
+          issued_to?: string
+          note?: string | null
+          phone?: string | null
+          product_id?: string
+          purpose?: string
+          qty?: number
+          ref?: string
+          returned_qty?: number
+          unit_cost?: number | null
+        }
+        Relationships: []
+      }
       types: {
         Row: {
           code: string
@@ -1423,6 +1474,17 @@ export type Database = {
         Args: { p_key: string; p_product: string }
         Returns: number
       }
+      issue_stock: {
+        Args: {
+          p_date?: string
+          p_lines: Json
+          p_note: string
+          p_phone: string
+          p_purpose: string
+          p_to: string
+        }
+        Returns: Json
+      }
       merge_products: {
         Args: { p_from: string; p_into: string }
         Returns: Json
@@ -1448,6 +1510,10 @@ export type Database = {
       reverse_receipt_core: { Args: { p_receipt: string }; Returns: undefined }
       set_bill_due: {
         Args: { p_due?: string; p_receipt: string }
+        Returns: undefined
+      }
+      return_issue: {
+        Args: { p_issue: string; p_note?: string; p_qty: number }
         Returns: undefined
       }
       size_label: { Args: { p_size: string; p_unit: string }; Returns: string }

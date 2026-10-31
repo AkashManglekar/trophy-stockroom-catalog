@@ -168,6 +168,29 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: "issued",
+    title: "Issue internal stock",
+    body: (
+      <Ul>
+        <li>
+          Internal items (officials' T-shirts, marketing caps, staff kit) are products like any
+          other — add them on Receive with <b>Internal stock only</b> ticked, so they never show on
+          the catalogue.
+        </li>
+        <li>
+          <b>Issued</b> → <b>Issue stock</b> (or <b>Issue to someone</b> on a product): who, phone,
+          purpose, date, note, then the items and quantities — tap a size chip to add the other
+          sizes of the same design. Stock comes off at once; cost is recorded at landed cost.
+        </li>
+        <li>
+          The register shows every hand-over with its reference (ISS-1001…), filters by purpose or
+          person, and downloads as CSV. Items that come back: enter the quantity and <b>Return</b> —
+          they go back into stock.
+        </li>
+      </Ul>
+    ),
+  },
+  {
     id: "multivendor",
     title: "Same product from several vendors",
     body: (

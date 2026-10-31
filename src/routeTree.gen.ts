@@ -18,6 +18,7 @@ import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppEnquiriesRouteImport } from './routes/_app/enquiries'
 import { Route as AppExportRouteImport } from './routes/_app/export'
 import { Route as AppGuideRouteImport } from './routes/_app/guide'
+import { Route as AppIssuedRouteImport } from './routes/_app/issued'
 import { Route as AppProductsRouteImport } from './routes/_app/products'
 import { Route as AppReceiveRouteImport } from './routes/_app/receive'
 import { Route as AppSalesRouteImport } from './routes/_app/sales'
@@ -69,6 +70,11 @@ const AppGuideRoute = AppGuideRouteImport.update({
   path: '/guide',
   getParentRoute: () => AppRoute,
 } as any)
+const AppIssuedRoute = AppIssuedRouteImport.update({
+  id: '/issued',
+  path: '/issued',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProductsRoute = AppProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/enquiries': typeof AppEnquiriesRoute
   '/export': typeof AppExportRoute
   '/guide': typeof AppGuideRoute
+  '/issued': typeof AppIssuedRoute
   '/products': typeof AppProductsRoute
   '/receive': typeof AppReceiveRoute
   '/sales': typeof AppSalesRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/enquiries': typeof AppEnquiriesRoute
   '/export': typeof AppExportRoute
   '/guide': typeof AppGuideRoute
+  '/issued': typeof AppIssuedRoute
   '/products': typeof AppProductsRoute
   '/receive': typeof AppReceiveRoute
   '/sales': typeof AppSalesRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/_app/enquiries': typeof AppEnquiriesRoute
   '/_app/export': typeof AppExportRoute
   '/_app/guide': typeof AppGuideRoute
+  '/_app/issued': typeof AppIssuedRoute
   '/_app/products': typeof AppProductsRoute
   '/_app/receive': typeof AppReceiveRoute
   '/_app/sales': typeof AppSalesRoute
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/enquiries'
     | '/export'
     | '/guide'
+    | '/issued'
     | '/products'
     | '/receive'
     | '/sales'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/enquiries'
     | '/export'
     | '/guide'
+    | '/issued'
     | '/products'
     | '/receive'
     | '/sales'
@@ -194,6 +205,7 @@ export interface FileRouteTypes {
     | '/_app/enquiries'
     | '/_app/export'
     | '/_app/guide'
+    | '/_app/issued'
     | '/_app/products'
     | '/_app/receive'
     | '/_app/sales'
@@ -275,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppGuideRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/issued': {
+      id: '/_app/issued'
+      path: '/issued'
+      fullPath: '/issued'
+      preLoaderRoute: typeof AppIssuedRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/products': {
       id: '/_app/products'
       path: '/products'
@@ -326,6 +345,7 @@ interface AppRouteChildren {
   AppEnquiriesRoute: typeof AppEnquiriesRoute
   AppExportRoute: typeof AppExportRoute
   AppGuideRoute: typeof AppGuideRoute
+  AppIssuedRoute: typeof AppIssuedRoute
   AppProductsRoute: typeof AppProductsRoute
   AppReceiveRoute: typeof AppReceiveRoute
   AppSalesRoute: typeof AppSalesRoute
@@ -339,6 +359,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEnquiriesRoute: AppEnquiriesRoute,
   AppExportRoute: AppExportRoute,
   AppGuideRoute: AppGuideRoute,
+  AppIssuedRoute: AppIssuedRoute,
   AppProductsRoute: AppProductsRoute,
   AppReceiveRoute: AppReceiveRoute,
   AppSalesRoute: AppSalesRoute,

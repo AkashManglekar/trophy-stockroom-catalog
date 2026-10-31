@@ -20,6 +20,7 @@ import {
   type ProductSource,
   type ReorderFlag,
   type BillDraft,
+  type StockIssue,
   type Vendor,
   type VendorCode,
 } from "./domain";
@@ -113,6 +114,20 @@ export const useReorderFlags = () =>
     queryKey: ["reorder_flags"],
     staleTime: STALE,
     queryFn: () => all<ReorderFlag>(supabase.from("reorder_flags").select("*")),
+  });
+/** Issue register: internal stock handed to people. */
+export const useIssues = () =>
+  useQuery({
+    queryKey: ["issues"],
+    staleTime: STALE,
+    queryFn: () =>
+      all<StockIssue>(
+        supabase
+          .from("stock_issues")
+          .select("*")
+          .order("issued_on", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ),
   });
 /** Bills parked as drafts (without their full contents). */
 export const useBillDrafts = (enabled = true) =>

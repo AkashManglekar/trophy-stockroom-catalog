@@ -11,6 +11,7 @@ import {
   PackagePlus,
   ReceiptText,
   Settings,
+  Shirt,
   Store,
   UploadCloud,
 } from "lucide-react";
@@ -24,6 +25,7 @@ export type NavKey =
   | "/bills"
   | "/products"
   | "/sales"
+  | "/issued"
   | "/enquiries"
   | "/vendors"
   | "/export"
@@ -35,6 +37,7 @@ const NAV: { to: NavKey; label: string; short: string; icon: typeof Store; main?
   { to: "/bills", label: "Bills", short: "Bills", icon: ReceiptText },
   { to: "/products", label: "Products", short: "Products", icon: LayoutGrid, main: true },
   { to: "/sales", label: "Sales", short: "Sales", icon: TrendingUp },
+  { to: "/issued", label: "Issued", short: "Issued", icon: Shirt },
   { to: "/enquiries", label: "Enquiries", short: "Enquiries", icon: Inbox, main: true },
   { to: "/vendors", label: "Vendors", short: "Vendors", icon: Store },
   { to: "/export", label: "Zoho", short: "Zoho", icon: UploadCloud },
@@ -71,7 +74,7 @@ export function AppShell({
         className="sticky top-0 z-30 bg-primary text-primary-foreground shadow-sm"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-2.5">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5 xl:max-w-7xl xl:gap-3">
           <Link to="/dashboard" className="flex items-center gap-2.5">
             <img
               src={LOGO_WHITE}
@@ -80,7 +83,7 @@ export function AppShell({
               height={160}
               className="h-6 w-auto sm:h-7"
             />
-            <span className="border-l border-white/30 pl-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75">
+            <span className="border-l border-white/30 pl-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] opacity-75 lg:hidden 2xl:inline">
               Stockroom
             </span>
           </Link>
@@ -93,7 +96,7 @@ export function AppShell({
                   key={n.to}
                   to={n.to}
                   className={cn(
-                    "relative rounded-full px-2.5 py-1.5 text-[11.5px] font-bold uppercase tracking-wide transition-colors",
+                    "relative whitespace-nowrap rounded-full px-1.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.04em] transition-colors xl:px-2.5 xl:text-[11.5px] xl:tracking-wide",
                     on
                       ? "bg-accent text-accent-foreground"
                       : "opacity-80 hover:bg-white/10 hover:opacity-100",

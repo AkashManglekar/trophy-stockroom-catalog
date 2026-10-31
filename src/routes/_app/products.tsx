@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
   ShoppingCart,
+  Shirt,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -1085,6 +1086,15 @@ function ProductPanel({
             className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent-foreground hover:bg-accent/90"
           >
             <ShoppingCart className="size-4" /> Sell this
+          </Link>
+        )}
+        {canPublish && p.status !== "Archived" && p.stock > 0 && (
+          <Link
+            to="/issued"
+            search={{ issue: p.id }}
+            className="inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide hover:border-primary"
+          >
+            <Shirt className="size-4" /> Issue to someone
           </Link>
         )}
         {!t?.is_service &&
