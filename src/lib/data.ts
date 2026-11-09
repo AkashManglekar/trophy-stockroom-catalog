@@ -276,17 +276,44 @@ export const useAdjustments = (productId: string | null) =>
   });
 
 /** Photos grouped by product, main photo first. */
+/** A photo shown for a size that has none of its own, borrowed from another size of the design. */
+export type SharedPhoto = Photo & { shared_from?: string };
+
+/**
+ * Photos per product. A size or colour without its own photo shows its design's photos — the
+ * same colour first (a Gold medal shows the Gold photo), then the same size, then any size.
+ */
 export function usePhotoMap() {
   const q = usePhotos();
+  const products = useProducts();
   return useMemo(() => {
-    const m = new Map<string, Photo[]>();
+    const m = new Map<string, SharedPhoto[]>();
     for (const p of q.data ?? []) {
       const list = m.get(p.product_id) ?? [];
       list.push(p);
       m.set(p.product_id, list);
     }
+    const byFam = new Map<string, Product[]>();
+    for (const p of products.data ?? [])
+      byFam.set(p.family_id, [...(byFam.get(p.family_id) ?? []), p]);
+    for (const sibs of byFam.values()) {
+      if (sibs.length < 2) continue;
+      const withPhoto = sibs.filter((x) => m.get(x.id)?.length);
+      if (!withPhoto.length) continue;
+      for (const p of sibs) {
+        if (m.get(p.id)?.length) continue;
+        const src =
+          withPhoto.find((x) => x.finish === p.finish) ??
+          withPhoto.find((x) => x.size === p.size) ??
+          withPhoto[0]!;
+        m.set(
+          p.id,
+          (m.get(src.id) ?? []).map((ph) => ({ ...ph, shared_from: src.code })),
+        );
+      }
+    }
     return m;
-  }, [q.data]);
+  }, [q.data, products.data]);
 }
 
 /** Stable, cacheable photo addresses (no network round-trip). `thumb` = small copy for grids. */

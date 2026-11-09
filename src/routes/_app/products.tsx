@@ -40,6 +40,7 @@ import {
   useBills,
   useFamilies,
   useInvalidate,
+  type SharedPhoto,
   usePhotoMap,
   useProducts,
   useRefData,
@@ -58,6 +59,7 @@ import { LinkToProduct, ProductSourcing, ReorderLevelField } from "@/components/
 import { swatchOf } from "@/lib/variants";
 import { BulkAdjust, StockAdjustForm } from "@/components/StockAdjust";
 import { AddStockForm } from "@/components/AddStock";
+import { EditDetails } from "@/components/EditDetails";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { publicCatalogueUrl } from "@/lib/hosts";
@@ -587,6 +589,7 @@ function ProductPanel({
   const [big, setBig] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const fam = families.data?.find((f) => f.id === p.family_id);
+  const [editDetails, setEditDetails] = useState(false);
   const manyFinishes = new Set(siblings.map((x) => x.finish)).size > 1;
   const t = ref_.types.find((x) => x.div === p.div && x.code === p.type);
   const d = ref_.divisions.find((x) => x.code === p.div);
@@ -739,6 +742,8 @@ function ProductPanel({
     inv("products", "families");
   }
   const main = photos[0];
+  /** This size has no photo of its own and shows another size's (see usePhotoMap). */
+  const shared = (photos[0] as SharedPhoto | undefined)?.shared_from;
   return (
     <aside
       className="panel fixed inset-0 z-40 grid content-start gap-4 overflow-y-auto p-4 lg:sticky lg:inset-auto lg:top-20 lg:z-0 lg:max-h-[calc(100dvh-6rem)] lg:p-5"
@@ -886,7 +891,7 @@ function ProductPanel({
               )}
               onClick={() => setBig(urls[ph.path ?? ""] ?? null)}
             />
-            {!ro && (
+            {!ro && !shared && (
               <>
                 {i > 0 && (
                   <button
@@ -930,13 +935,41 @@ function ProductPanel({
             )}
           </span>
         ))}
-        {!ro && <PhotoButtons productId={p.id} count={photos.length} />}
+        {!ro && <PhotoButtons productId={p.id} count={shared ? 0 : photos.length} />}
       </div>
+      {shared && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Photo from <span className="font-mono">{shared}</span> (same design) — shown for this size
+          on Products and the catalogue. Add a photo here to give this size its own.
+        </p>
+      )}
 
       <section className="grid gap-2">
-        <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
-          What it is
-        </h4>
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-xs font-extrabold uppercase tracking-[0.1em] text-muted-foreground">
+            What it is
+          </h4>
+          {canEdit && !editDetails && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 rounded-full px-3 text-xs"
+              onClick={() => setEditDetails(true)}
+            >
+              Edit details
+            </Button>
+          )}
+        </div>
+        {editDetails && (
+          <EditDetails
+            key={p.id}
+            p={p}
+            fam={fam}
+            siblings={siblings}
+            ref_={ref_}
+            onClose={() => setEditDetails(false)}
+          />
+        )}
         <dl className="grid grid-cols-[minmax(110px,max-content)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
           <dt className="text-muted-foreground">Spec code</dt>
           <dd className="code-tag wrap-any">{p.spec_code}</dd>

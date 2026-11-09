@@ -1474,6 +1474,10 @@ export type Database = {
         Args: { p_key: string; p_product: string }
         Returns: number
       }
+      edit_variant: {
+        Args: { p_finish: string; p_name: string; p_product: string; p_size: string }
+        Returns: undefined
+      }
       issue_stock: {
         Args: {
           p_date?: string
@@ -1511,6 +1515,10 @@ export type Database = {
       set_bill_due: {
         Args: { p_due?: string; p_receipt: string }
         Returns: undefined
+      }
+      reclassify_design: {
+        Args: { p_div: string; p_family: string; p_mat: string; p_sport: string; p_type: string }
+        Returns: Json
       }
       return_issue: {
         Args: { p_issue: string; p_note?: string; p_qty: number }

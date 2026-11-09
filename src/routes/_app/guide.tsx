@@ -199,6 +199,23 @@ const LESSONS: { id: string; title: string; body: ReactNode }[] = [
     ),
   },
   {
+    id: "editdetails",
+    title: "Change what a product is",
+    body: (
+      <Ul>
+        <li>
+          Product page → <b>Edit details</b>: division, type (cup, figure, medal…), material and
+          sport apply to the whole design — every size moves together; size and finish apply to this
+          product. The product code never changes; the spec code, name and price follow.
+        </li>
+        <li>
+          Photos: a size or colour without its own photo shows the design's — the same colour first,
+          then the same size. Add a photo to a size to give it its own.
+        </li>
+      </Ul>
+    ),
+  },
+  {
     id: "issued",
     title: "Issue internal stock",
     body: (
